@@ -1,0 +1,30 @@
+import { Link } from 'react-router-dom';
+import { Helmet } from 'react-helmet-async';
+import { Home, ShieldAlert } from 'lucide-react';
+import { APP_NAME, ROUTES } from '@/lib/constants';
+import { Button } from '@/components/common/Button';
+
+export function ForbiddenPage() {
+  return (
+    <>
+      <Helmet>
+        <title>Forbidden — {APP_NAME}</title>
+      </Helmet>
+
+      <div className="flex min-h-[60vh] flex-col items-center justify-center px-4 py-16 text-center">
+        <ShieldAlert className="size-12 text-critical" aria-hidden="true" />
+        <p className="mt-4 text-6xl font-bold text-primary">403</p>
+        <h1 className="mt-4 text-2xl font-bold text-text-primary">Access denied</h1>
+        <p className="mt-2 max-w-md text-text-secondary">
+          You don&apos;t have permission to view this page.
+        </p>
+        <Link to={ROUTES.home} className="mt-8">
+          <Button variant="outline">
+            <Home className="size-4" aria-hidden="true" />
+            Go home
+          </Button>
+        </Link>
+      </div>
+    </>
+  );
+}

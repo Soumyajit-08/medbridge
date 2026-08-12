@@ -1,0 +1,88 @@
+import type { Notification } from '@/types/notification';
+
+export interface MockNotification extends Notification {
+  userId: string;
+}
+
+export const initialNotifications: MockNotification[] = [
+  {
+    id: 'notif-donor-claim-request',
+    userId: 'user-donor-abc',
+    type: 'CLAIM_REQUEST',
+    title: 'New claim request',
+    message: 'Hope Care Clinic requested 30 units of Paracetamol 500mg.',
+    read: false,
+    link: '/donor/claims',
+    createdAt: '2026-08-11T10:00:00.000Z',
+  },
+  {
+    id: 'notif-donor-expiry',
+    userId: 'user-donor-abc',
+    type: 'EXPIRY_7_DAYS',
+    title: 'Listing expiring soon',
+    message: 'Your Paracetamol 500mg listing expires in 15 days.',
+    read: false,
+    link: '/donor/listings/listing-paracetamol-abc',
+    createdAt: '2026-08-10T08:00:00.000Z',
+  },
+  {
+    id: 'notif-donor-pickup',
+    userId: 'user-donor-abc',
+    type: 'PICKUP_REMINDER',
+    title: 'Pickup reminder',
+    message: 'Confirmed claim from Hope Care Clinic is ready for pickup coordination.',
+    read: true,
+    link: '/donor/claims',
+    createdAt: '2026-08-10T16:30:00.000Z',
+  },
+  {
+    id: 'notif-recipient-match',
+    userId: 'user-recipient-hope',
+    type: 'NEW_MATCH',
+    title: 'New medicine match',
+    message: 'ABC Pharmacy listed Paracetamol 500mg near your location.',
+    read: false,
+    link: '/recipient/medicines/listing-paracetamol-abc',
+    createdAt: '2026-08-10T08:30:00.000Z',
+  },
+  {
+    id: 'notif-recipient-confirmed',
+    userId: 'user-recipient-hope',
+    type: 'CLAIM_CONFIRMED',
+    title: 'Claim confirmed',
+    message: 'ABC Pharmacy confirmed your claim for 20 units of Paracetamol 500mg.',
+    read: false,
+    link: '/recipient/claims',
+    createdAt: '2026-08-10T16:00:00.000Z',
+  },
+  {
+    id: 'notif-recipient-approved',
+    userId: 'user-recipient-hope',
+    type: 'VERIFICATION_APPROVED',
+    title: 'Verification approved',
+    message: 'Hope Care Clinic has been verified. You can now claim medicines.',
+    read: true,
+    link: '/recipient/verification',
+    createdAt: '2026-02-05T10:00:00.000Z',
+  },
+  {
+    id: 'notif-pending-rejected',
+    userId: 'user-recipient-pending',
+    type: 'CLAIM_CANCELLED',
+    title: 'Claim cancelled',
+    message: 'Your claim was cancelled because verification is still pending.',
+    read: false,
+    link: '/recipient/verification',
+    createdAt: '2026-08-09T14:00:00.000Z',
+  },
+  {
+    id: 'notif-admin-report',
+    userId: 'user-admin',
+    type: 'REPORT_CREATED',
+    title: 'New listing report',
+    message: 'A listing has been reported and requires review.',
+    read: false,
+    link: '/admin/reports',
+    createdAt: '2026-08-11T11:00:00.000Z',
+  },
+];

@@ -1,0 +1,42 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --color-background: #F7F9FA;
+  --color-surface: #FFFFFF;
+  --color-primary: #0F6E6A;
+  --color-primary-dark: #0B5450;
+  --color-secondary: #4C9A5A;
+  --color-accent: #E8973A;
+  --color-critical: #D64545;
+  --color-text-primary: #1A2B2A;
+  --color-text-secondary: #5B6B6A;
+  --color-border: #E3E8E7;
+  --font-sans: 'Inter', system-ui, sans-serif;
+  --radius-card: 16px;
+  --shadow-card: 0 1px 3px rgba(26, 43, 42, 0.06), 0 4px 12px rgba(26, 43, 42, 0.04);
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-background text-text-primary font-sans antialiased;
+  }
+
+  *:focus-visible {
+    @apply outline-2 outline-offset-2 outline-primary;
+  }
+}
+
+@layer utilities {
+  .gradient-hero {
+    background: linear-gradient(135deg, #F7F9FA 0%, #E8F4F3 50%, #F7F9FA 100%);
+  }
+
+  .gradient-primary {
+    background: linear-gradient(135deg, #0F6E6A 0%, #0B5450 100%);
+  }
+}
