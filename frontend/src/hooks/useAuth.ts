@@ -7,15 +7,38 @@ import { getDashboardPath } from '@/utils/roleHelpers';
 import type { LoginCredentials, RegisterData } from '@/types/auth';
 
 export function useAuthInit() {
-  const { setAuth, setLoading, logout } = useAuthStore();
+  const { setAuth, setUser, setLoading, logout } = useAuthStore();
 
   useEffect(() => {
-    authService
-      .refresh()
-      .then(({ user, accessToken }) => setAuth(user, accessToken))
-      .catch(() => logout())
-      .finally(() => setLoading(false));
-  }, [setAuth, setLoading, logout]);
+    const state = useAuthStore.getState();
+    const token = state.accessToken;
+
+    if (token && state.isAuthenticated) {
+      // Validate current token with /me
+      authService
+        .getMe()
+        .then((user) => {
+          setUser(user);
+        })
+        .catch(() => {
+          // Token expired, attempt refresh
+          authService
+            .refresh()
+            .then(({ user, accessToken }) => setAuth(user, accessToken))
+            .catch(() => logout());
+        })
+        .finally(() => setLoading(false));
+    } else {
+      // Attempt silent cookie refresh if any
+      authService
+        .refresh()
+        .then(({ user, accessToken }) => setAuth(user, accessToken))
+        .catch(() => {
+          // No active session, stay unauthenticated
+        })
+        .finally(() => setLoading(false));
+    }
+  }, [setAuth, setUser, setLoading, logout]);
 }
 
 export function useAuth() {

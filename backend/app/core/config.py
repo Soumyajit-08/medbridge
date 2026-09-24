@@ -52,8 +52,10 @@ class Settings(BaseSettings):
     JWT_ACCESS_EXPIRES_MINUTES: int = 15
     JWT_REFRESH_EXPIRES_DAYS: int = 30
 
-    # ── Database ──────────────────────────────────────────────────────────────
-    DATABASE_URL: str
+    # ── Database (MongoDB) ────────────────────────────────────────────────────
+    MONGODB_URL: str = "mongodb+srv://soumyajitnag2021_db_user:Soumyajit_2021@cluster0.7ef5lug.mongodb.net/?appName=Cluster0"
+    MONGODB_DB_NAME: str = "medbridge"
+    DATABASE_URL: str = "mongodb+srv://soumyajitnag2021_db_user:Soumyajit_2021@cluster0.7ef5lug.mongodb.net/?appName=Cluster0"
 
     # ── Redis ─────────────────────────────────────────────────────────────────
     REDIS_URL: str = "redis://localhost:6379/0"

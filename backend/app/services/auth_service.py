@@ -1,96 +1,43 @@
 """
 app/services/auth_service.py
 ──────────────────────────────────────────────────────────────────────────────
-Authentication service — all business logic for auth operations.
-
-WHY A SERVICE LAYER?
-  The service layer sits between routers and repositories.
-  It contains the business rules and orchestration logic.
-
-  Router (HTTP) → Service (business logic) → Repository (database)
-
-WHAT BELONGS HERE:
-  - "Is this email already taken?" → business rule
-  - "Is this password correct?" → business rule
-  - "Create tokens + store refresh token" → orchestration
-  - "Is this recipient verified?" → business rule
-
-WHAT DOES NOT BELONG HERE:
-  - Raw SQL queries → goes in repositories
-  - HTTP response formatting → goes in routers
-  - Token creation → goes in auth/jwt.py (service calls it)
-
-REQUEST FLOW for Registration:
-  POST /api/v1/auth/register
-    → RegisterRequest validated by Pydantic
-      → auth_router calls auth_service.register()
-        → Check if email exists (user_repository)
-          → Hash the password (password.hash_password)
-            → Create user in DB (user_repository.create)
-              → Create access token (jwt.create_access_token)
-                → Create refresh token (jwt.create_refresh_token)
-                  → Store refresh token hash in DB
-                    → Log audit event
-                      → Return { user, access_token, refresh_token }
+Authentication service — MongoDB business logic for auth operations.
 """
 
+import uuid
 from datetime import timedelta
-from sqlalchemy.orm import Session
+from typing import Optional, Tuple
+from pymongo.database import Database
 
 from app.repositories.user_repository import user_repository
 from app.repositories.refresh_token_repository import refresh_token_repository
 from app.repositories.audit_repository import audit_repository
 from app.auth.password import hash_password, verify_password, needs_rehash
 from app.auth.jwt import create_access_token, create_refresh_token, verify_refresh_token, get_user_id_from_token
-from app.schemas.auth import RegisterRequest, AuthUserResponse
+from app.schemas.auth import RegisterRequest
 from app.utils.enums import AuditEvent
-from app.utils.exceptions import ConflictError, AuthenticationError, BusinessRuleError
+from app.utils.exceptions import ConflictError, AuthenticationError
 from app.utils.datetime_utils import utc_now
 from app.core.config import settings
-import uuid
+from app.db.mongodb import get_db, get_users_collection
 
 
 class AuthService:
-    """
-    Handles all authentication business logic.
-
-    Note: Methods take `db: Session` as first argument.
-    The session is managed by FastAPI's dependency injection (get_db).
-    """
 
     def register(
         self,
-        db: Session,
+        db: Optional[Database],
         payload: RegisterRequest,
         ip_address: str | None = None,
-    ) -> tuple:
-        """
-        Register a new user.
-
-        Returns: (user, access_token, refresh_token)
-
-        Business rules enforced:
-          1. Email must not already exist.
-          2. ADMIN role cannot be self-registered.
-          3. Donor must provide donor_type.
-          4. Recipient must provide organization info.
-          (Rules 2-4 are enforced in the Pydantic schema)
-
-        The caller (router) is responsible for:
-          - Committing the transaction (db.commit())
-          - Setting the refresh token cookie
-        """
-        # Rule 1: Email uniqueness check
+    ) -> Tuple:
         if user_repository.email_exists(db, payload.email):
             raise ConflictError(
                 "An account with this email address already exists.",
                 error_code="EMAIL_ALREADY_EXISTS",
             )
 
-        # Hash the password — NEVER store plain text
         password_hash = hash_password(payload.password)
 
-        # Create the user record
         user = user_repository.create(
             db,
             name=payload.name,
@@ -103,11 +50,31 @@ class AuthService:
             organization_type=payload.organization_type,
         )
 
-        # Create JWT tokens
-        access_token = create_access_token(str(user.id), user.role.value)
+        role_str = user.role if isinstance(user.role, str) else user.role.value
+        access_token = create_access_token(str(user.id), role_str)
         refresh_token = create_refresh_token(str(user.id))
 
-        # Store refresh token hash in DB
+        # If registering as RECIPIENT, automatically create a pending verification submission
+        if role_str == "RECIPIENT":
+            now = utc_now()
+            col_ver = db["verification_submissions"] if db is not None else get_db()["verification_submissions"]
+            sub_id = str(uuid.uuid4())
+            col_ver.insert_one({
+                "_id": sub_id,
+                "id": sub_id,
+                "user_id": str(user.id),
+                "recipient_id": str(user.id),
+                "organization_name": payload.organization_name or user.name,
+                "organization_type": payload.organization_type.value if hasattr(payload.organization_type, "value") else (str(payload.organization_type) if payload.organization_type else "NGO"),
+                "registration_number": "PENDING_SUBMISSION",
+                "documents": [],
+                "document_url": None,
+                "document_name": "Awaiting Document Upload",
+                "status": "PENDING",
+                "created_at": now,
+                "updated_at": now,
+            })
+
         expires_at = utc_now() + timedelta(days=settings.JWT_REFRESH_EXPIRES_DAYS)
         refresh_token_repository.create(
             db,
@@ -116,7 +83,6 @@ class AuthService:
             expires_at=expires_at,
         )
 
-        # Audit log
         audit_repository.log(
             db,
             event=AuditEvent.USER_REGISTERED,
@@ -131,46 +97,45 @@ class AuthService:
 
     def login(
         self,
-        db: Session,
+        db: Optional[Database],
         email: str,
         password: str,
+        portal: Optional[str] = None,
         ip_address: str | None = None,
-    ) -> tuple:
-        """
-        Authenticate a user with email + password.
-
-        Returns: (user, access_token, refresh_token)
-
-        Security note: We return the same error for both
-        "user not found" and "wrong password". This prevents
-        an attacker from using login errors to enumerate which
-        emails are registered.
-        """
+    ) -> Tuple:
         INVALID_CREDENTIALS_MSG = "Invalid email or password."
 
-        # Find user by email
         user = user_repository.get_by_email(db, email)
         if not user:
             raise AuthenticationError(INVALID_CREDENTIALS_MSG)
 
-        # Check account is active
         if not user.is_active:
             raise AuthenticationError("Your account has been deactivated. Please contact support.")
 
-        # Verify password
         if not verify_password(password, user.password_hash):
             raise AuthenticationError(INVALID_CREDENTIALS_MSG)
 
-        # Optional: rehash with stronger parameters if needed
-        if needs_rehash(user.password_hash):
-            user.password_hash = hash_password(password)
-            db.flush()
+        role_str = user.role if isinstance(user.role, str) else user.role.value
+        if portal:
+            portal_upper = portal.upper()
+            if portal_upper == "ADMIN" and role_str != "ADMIN":
+                raise AuthenticationError(
+                    "Access denied. This account does not have Administrator privileges. Please select the 'Donor & Recipient' portal."
+                )
+            elif portal_upper in ("USER", "DONOR", "RECIPIENT") and role_str == "ADMIN":
+                raise AuthenticationError(
+                    "This is an Administrator account. Please select the 'Administrator' portal to sign in."
+                )
 
-        # Create tokens
-        access_token = create_access_token(str(user.id), user.role.value)
+        if needs_rehash(user.password_hash):
+            new_hash = hash_password(password)
+            col = db["users"] if db is not None else get_users_collection()
+            col.update_one({"_id": user.id}, {"$set": {"password_hash": new_hash}})
+            user.password_hash = new_hash
+
+        access_token = create_access_token(str(user.id), role_str)
         refresh_token = create_refresh_token(str(user.id))
 
-        # Store refresh token
         expires_at = utc_now() + timedelta(days=settings.JWT_REFRESH_EXPIRES_DAYS)
         refresh_token_repository.create(
             db,
@@ -179,7 +144,6 @@ class AuthService:
             expires_at=expires_at,
         )
 
-        # Audit log
         audit_repository.log(
             db,
             event=AuditEvent.USER_LOGIN,
@@ -190,47 +154,28 @@ class AuthService:
 
         return user, access_token, refresh_token
 
-    def refresh_tokens(self, db: Session, refresh_token: str) -> tuple:
-        """
-        Issue new tokens using a valid refresh token (rotation).
-
-        TOKEN ROTATION:
-          1. Verify the refresh token JWT signature + expiry
-          2. Check it's in the DB and not revoked
-          3. Revoke the old token
-          4. Issue a new access + refresh token pair
-          5. Store the new refresh token
-
-        This means each refresh token can only be used ONCE.
-        If a stolen token is replayed after rotation, it's already revoked → rejected.
-        """
-        # Step 1: Verify JWT signature + expiry
+    def refresh_tokens(self, db: Optional[Database], refresh_token: str) -> Tuple:
         try:
             payload = verify_refresh_token(refresh_token)
             user_id_str = get_user_id_from_token(payload)
         except AuthenticationError:
             raise AuthenticationError("Invalid or expired refresh token")
 
-        # Step 2: Check DB — token must exist and not be revoked
         stored_token = refresh_token_repository.get_by_token(db, refresh_token)
         if not stored_token:
             raise AuthenticationError("Refresh token not found or already revoked")
 
-        # Check expiry at DB level too
-        if stored_token.expires_at < utc_now():
+        if stored_token.expires_at and stored_token.expires_at < utc_now():
             raise AuthenticationError("Refresh token has expired")
 
-        # Fetch user
-        user_id = uuid.UUID(user_id_str)
-        user = user_repository.get_by_id(db, user_id)
+        user = user_repository.get_by_id(db, user_id_str)
         if not user or not user.is_active:
             raise AuthenticationError("User not found or deactivated")
 
-        # Step 3: Revoke old token
         refresh_token_repository.revoke(db, refresh_token)
 
-        # Step 4 & 5: Issue new tokens
-        new_access_token = create_access_token(str(user.id), user.role.value)
+        role_str = user.role if isinstance(user.role, str) else user.role.value
+        new_access_token = create_access_token(str(user.id), role_str)
         new_refresh_token = create_refresh_token(str(user.id))
 
         expires_at = utc_now() + timedelta(days=settings.JWT_REFRESH_EXPIRES_DAYS)
@@ -243,17 +188,14 @@ class AuthService:
 
         return user, new_access_token, new_refresh_token
 
-    def logout(self, db: Session, refresh_token: str | None, user_id: uuid.UUID, user_name: str, ip_address: str | None = None) -> None:
-        """
-        Logout: revoke the refresh token so it can't be used again.
-        """
+    def logout(self, db: Optional[Database], refresh_token: str | None, user_id: str, user_name: str, ip_address: str | None = None) -> None:
         if refresh_token:
             refresh_token_repository.revoke(db, refresh_token)
 
         audit_repository.log(
             db,
             event=AuditEvent.USER_LOGOUT,
-            user_id=user_id,
+            user_id=str(user_id),
             user_name=user_name,
             ip_address=ip_address,
         )

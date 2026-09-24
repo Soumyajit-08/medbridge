@@ -1,93 +1,72 @@
 """
 app/routers/dashboards.py
 ──────────────────────────────────────────────────────────────────────────────
-Dashboard endpoints — summary statistics for each role.
-
-GET /donor/dashboard      → Donor summary (listings, claims, impact stats)
-GET /recipient/dashboard  → Recipient summary (claims, needs, verification status)
+Dashboard endpoints for MongoDB.
 """
 
 from fastapi import APIRouter, Depends
-from sqlalchemy.orm import Session
-from sqlalchemy import func
+from pymongo.database import Database
 
 from app.db.session import get_db
 from app.core.dependencies import require_donor, require_recipient
 from app.models.listing import Listing
-from app.models.claim import Claim
-from app.models.need import Need
 from app.models.user import User
-from app.utils.enums import ListingStatus, ClaimStatus, NeedStatus, UrgencyLevel
 
 router = APIRouter(tags=["Dashboards"])
 
 
 @router.get("/donor/dashboard", summary="Donor dashboard stats")
 def donor_dashboard(
-    db: Session = Depends(get_db),
+    db: Database = Depends(get_db),
     current_user: User = Depends(require_donor),
 ):
-    """
-    GET /api/v1/donor/dashboard
+    uid = str(current_user.id)
+    donor_query = {"donor_id": uid, "status": {"$ne": "REMOVED"}}
 
-    Returns summary statistics for the authenticated donor:
-      - Total, active, claimed, completed, expired listing counts
-      - Pending claims awaiting confirmation
-      - Total medicines donated (completed claim qty sums)
-      - Urgency breakdown
-    """
-    # Listing counts by status (excluding REMOVED)
-    all_listings = db.query(Listing).filter(
-        Listing.donor_id == current_user.id,
-        Listing.status != ListingStatus.REMOVED,
-    )
-    total_listings = all_listings.count()
-    active = all_listings.filter(Listing.status == ListingStatus.ACTIVE).count()
-    claim_pending = all_listings.filter(Listing.status == ListingStatus.CLAIM_PENDING).count()
-    claimed = all_listings.filter(Listing.status == ListingStatus.CLAIMED).count()
-    completed = all_listings.filter(Listing.status == ListingStatus.COMPLETED).count()
-    expired = all_listings.filter(Listing.status == ListingStatus.EXPIRED).count()
+    total_listings = db["listings"].count_documents(donor_query)
+    active = db["listings"].count_documents({"donor_id": uid, "status": "ACTIVE"})
+    claim_pending = db["listings"].count_documents({"donor_id": uid, "status": "CLAIM_PENDING"})
+    claimed = db["listings"].count_documents({"donor_id": uid, "status": "CLAIMED"})
+    completed = db["listings"].count_documents({"donor_id": uid, "status": "COMPLETED"})
+    expired = db["listings"].count_documents({"donor_id": uid, "status": "EXPIRED"})
 
-    # Pending claims on donor's listings
-    pending_claims = (
-        db.query(func.count(Claim.id))
-        .join(Listing, Claim.listing_id == Listing.id)
-        .filter(
-            Listing.donor_id == current_user.id,
-            Listing.status != ListingStatus.REMOVED,
-            Claim.status == ClaimStatus.PENDING,
-        )
-        .scalar() or 0
-    )
+    # Donor listing IDs
+    listing_docs = list(db["listings"].find({"donor_id": uid}, {"_id": 1, "id": 1}))
+    listing_ids = [str(d.get("id") or d.get("_id")) for d in listing_docs]
 
-    # Urgency breakdown (only ACTIVE listings)
-    urgency_counts = {}
-    for level in UrgencyLevel:
-        count = all_listings.filter(
-            Listing.status == ListingStatus.ACTIVE,
-            Listing.urgency == level,
-        ).count()
-        urgency_counts[level.value] = count
+    pending_claims = db["claims"].count_documents({
+        "listing_id": {"$in": listing_ids},
+        "status": "PENDING",
+    })
 
-    # Total units donated (completed claims)
-    total_donated = (
-        db.query(func.coalesce(func.sum(Claim.requested_quantity), 0))
-        .join(Listing, Claim.listing_id == Listing.id)
-        .filter(
-            Listing.donor_id == current_user.id,
-            Claim.status == ClaimStatus.COMPLETED,
-        )
-        .scalar() or 0
-    )
+    urgency_counts = {
+        "LOW": db["listings"].count_documents({"donor_id": uid, "status": "ACTIVE", "urgency": "LOW"}),
+        "MEDIUM": db["listings"].count_documents({"donor_id": uid, "status": "ACTIVE", "urgency": "MEDIUM"}),
+        "HIGH": db["listings"].count_documents({"donor_id": uid, "status": "ACTIVE", "urgency": "HIGH"}),
+        "CRITICAL": db["listings"].count_documents({"donor_id": uid, "status": "ACTIVE", "urgency": "CRITICAL"}),
+        "EXPIRED": db["listings"].count_documents({"donor_id": uid, "status": "ACTIVE", "urgency": "EXPIRED"}),
+    }
 
-    # Recent active listings (top 5)
-    recent_active = (
-        db.query(Listing)
-        .filter(Listing.donor_id == current_user.id, Listing.status == ListingStatus.ACTIVE)
-        .order_by(Listing.created_at.desc())
-        .limit(5)
-        .all()
-    )
+    # Sum of completed claim quantities
+    completed_claims_cursor = db["claims"].find({
+        "listing_id": {"$in": listing_ids},
+        "status": "COMPLETED",
+    })
+    total_donated = sum(int(c.get("requested_quantity", 0)) for c in completed_claims_cursor)
+
+    recent_cursor = db["listings"].find({"donor_id": uid, "status": "ACTIVE"}).sort("created_at", -1).limit(5)
+    recent_active = []
+    for l in recent_cursor:
+        recent_active.append({
+            "id": str(l.get("id") or l.get("_id")),
+            "expiryDate": str(l.get("expiry_date", "")),
+            "urgency": str(l.get("urgency", "NORMAL")),
+            "status": str(l.get("status", "ACTIVE")),
+            "city": str(l.get("city", "")),
+            "state": str(l.get("state", "")),
+            "quantity": l.get("quantity", 0),
+            "quantityAvailable": l.get("quantity_available", 0),
+        })
 
     return {
         "totalListings": total_listings,
@@ -112,74 +91,32 @@ def donor_dashboard(
             "completedDonations": completed,
         },
         "urgencyBreakdown": urgency_counts,
-        "recentActiveListings": [
-            {
-                "id": str(l.id),
-                "expiryDate": l.expiry_date.isoformat(),
-                "urgency": l.urgency.value,
-                "status": l.status.value,
-                "city": l.city,
-                "state": l.state,
-                "quantity": l.quantity,
-                "quantityAvailable": l.quantity_available,
-            }
-            for l in recent_active
-        ],
+        "recentActiveListings": recent_active,
     }
 
 
 @router.get("/recipient/dashboard", summary="Recipient dashboard stats")
 def recipient_dashboard(
-    db: Session = Depends(get_db),
+    db: Database = Depends(get_db),
     current_user: User = Depends(require_recipient),
 ):
-    """
-    GET /api/v1/recipient/dashboard
+    uid = str(current_user.id)
+    v_status = current_user.verification_status if isinstance(current_user.verification_status, str) else getattr(current_user.verification_status, "value", None)
 
-    Returns summary statistics for the authenticated recipient:
-      - Verification status
-      - Claim counts by status
-      - Need counts by status
-      - Active matches count
-    """
-    verification_status = (
-        current_user.verification_status.value
-        if current_user.verification_status
-        else None
-    )
+    total_claims = db["claims"].count_documents({"recipient_id": uid})
+    pending_claims = db["claims"].count_documents({"recipient_id": uid, "status": "PENDING"})
+    confirmed_claims = db["claims"].count_documents({"recipient_id": uid, "status": "CONFIRMED"})
+    completed_claims = db["claims"].count_documents({"recipient_id": uid, "status": "COMPLETED"})
+    cancelled_claims = db["claims"].count_documents({"recipient_id": uid, "status": "CANCELLED"})
 
-    # Claims
-    all_claims = db.query(Claim).filter(Claim.recipient_id == current_user.id)
-    total_claims = all_claims.count()
-    pending_claims = all_claims.filter(Claim.status == ClaimStatus.PENDING).count()
-    confirmed_claims = all_claims.filter(Claim.status == ClaimStatus.CONFIRMED).count()
-    completed_claims = all_claims.filter(Claim.status == ClaimStatus.COMPLETED).count()
-    cancelled_claims = all_claims.filter(Claim.status == ClaimStatus.CANCELLED).count()
+    total_needs = db["needs"].count_documents({"recipient_id": uid})
+    active_needs = db["needs"].count_documents({"recipient_id": uid, "status": {"$in": ["ACTIVE", "OPEN"]}})
+    fulfilled_needs = db["needs"].count_documents({"recipient_id": uid, "status": "FULFILLED"})
 
-    # Needs
-    all_needs = db.query(Need).filter(Need.recipient_id == current_user.id)
-    total_needs = all_needs.count()
-    active_needs = all_needs.filter(Need.status == NeedStatus.ACTIVE).count()
-    fulfilled_needs = all_needs.filter(Need.status == NeedStatus.FULFILLED).count()
+    completed_claims_cursor = db["claims"].find({"recipient_id": uid, "status": "COMPLETED"})
+    total_received = sum(int(c.get("requested_quantity", 0)) for c in completed_claims_cursor)
 
-    # Total medicines received
-    total_received = (
-        db.query(func.coalesce(func.sum(Claim.requested_quantity), 0))
-        .filter(
-            Claim.recipient_id == current_user.id,
-            Claim.status == ClaimStatus.COMPLETED,
-        )
-        .scalar() or 0
-    )
-
-    active_need_med_ids = [n.medicine_id for n in all_needs.filter(Need.status == NeedStatus.ACTIVE).all()]
-    if active_need_med_ids:
-        available_matches = db.query(Listing).filter(
-            Listing.medicine_id.in_(active_need_med_ids),
-            Listing.status == ListingStatus.ACTIVE,
-        ).count()
-    else:
-        available_matches = db.query(Listing).filter(Listing.status == ListingStatus.ACTIVE).count()
+    available_matches = db["listings"].count_documents({"status": "ACTIVE"})
 
     return {
         "totalListings": 0,
@@ -189,7 +126,7 @@ def recipient_dashboard(
         "availableMatches": available_matches,
         "activeClaims": pending_claims + confirmed_claims,
         "pendingNeeds": active_needs,
-        "verificationStatus": verification_status,
+        "verificationStatus": v_status,
         "claimStats": {
             "total": total_claims,
             "pending": pending_claims,

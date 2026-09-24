@@ -1,14 +1,7 @@
 """
 app/routers/claims.py
 ──────────────────────────────────────────────────────────────────────────────
-Claim endpoints — recipient requests to receive medicine from a listing.
-
-GET   /claims              → Get my claims (role-aware)
-GET   /claims/{id}         → Get claim detail
-POST  /claims              → Recipient creates a claim
-PATCH /claims/{id}/confirm → Donor confirms claim
-PATCH /claims/{id}/cancel  → Either party cancels
-PATCH /claims/{id}/complete → Donor marks as completed
+Claim endpoints for MongoDB.
 """
 
 import uuid
@@ -16,7 +9,7 @@ from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy.orm import Session, joinedload
+from pymongo.database import Database
 
 from app.db.session import get_db
 from app.core.dependencies import get_current_user
@@ -36,241 +29,243 @@ from app.repositories.audit_repository import audit_repository
 router = APIRouter(prefix="/claims", tags=["Claims"])
 
 
-def claim_to_dict(claim: Claim) -> dict:
-    listing = getattr(claim, 'listing', None)
-    medicine = getattr(listing, 'medicine', None) if listing else None
-    recipient = getattr(claim, 'recipient', None)
-    donor = getattr(listing, 'donor', None) if listing else None
+def claim_to_dict(claim: Claim, db: Optional[Database] = None) -> dict:
+    listing = claim.listing or {}
+    recipient = claim.recipient or {}
+
+    if (not listing or not recipient) and db is not None:
+        if not listing and claim.listing_id:
+            doc = db["listings"].find_one({"$or": [{"_id": str(claim.listing_id)}, {"id": str(claim.listing_id)}]})
+            if doc:
+                listing = doc
+        if not recipient and claim.recipient_id:
+            doc = db["users"].find_one({"$or": [{"_id": str(claim.recipient_id)}, {"id": str(claim.recipient_id)}]})
+            if doc:
+                recipient = doc
+
+    medicine = listing.get("medicine", {})
+    donor = listing.get("donor", {})
+
+    status_val = claim.status if isinstance(claim.status, str) else getattr(claim.status, "value", str(claim.status))
+    created_at_val = claim.created_at.isoformat() if hasattr(claim.created_at, "isoformat") else str(claim.created_at or "")
+    updated_at_val = claim.updated_at.isoformat() if hasattr(claim.updated_at, "isoformat") else str(claim.updated_at or "")
+
+    confirmed_at_val = claim.confirmed_at.isoformat() if hasattr(claim.confirmed_at, "isoformat") and claim.confirmed_at else (str(claim.confirmed_at) if claim.confirmed_at else None)
+    completed_at_val = claim.completed_at.isoformat() if hasattr(claim.completed_at, "isoformat") and claim.completed_at else (str(claim.completed_at) if claim.completed_at else None)
+    cancelled_at_val = claim.cancelled_at.isoformat() if hasattr(claim.cancelled_at, "isoformat") and claim.cancelled_at else (str(claim.cancelled_at) if claim.cancelled_at else None)
+
+    recipient_name = recipient.get("organization_name") or recipient.get("name", "")
+    recipient_status = recipient.get("verification_status", "PENDING")
+    donor_type = donor.get("donor_type", "HOUSEHOLD")
 
     result = {
         "id": str(claim.id),
         "listingId": str(claim.listing_id),
         "recipientId": str(claim.recipient_id),
         "requestedQuantity": claim.requested_quantity,
-        "availableQuantity": listing.quantity_available if listing else 0,
-        "recipientOrganization": (recipient.organization_name or recipient.name) if recipient else "",
-        "recipientVerificationStatus": (recipient.verification_status.value if recipient and recipient.verification_status else "PENDING"),
-        "donorType": (donor.donor_type.value if donor and donor.donor_type else "HOUSEHOLD"),
-        "status": claim.status.value,
+        "availableQuantity": listing.get("quantity_available", 0),
+        "recipientOrganization": recipient_name,
+        "recipientVerificationStatus": recipient_status,
+        "donorType": donor_type,
+        "status": status_val,
         "cancellationReason": claim.cancellation_reason,
-        "createdAt": claim.created_at.isoformat(),
-        "updatedAt": claim.updated_at.isoformat(),
-        "confirmedAt": claim.confirmed_at.isoformat() if claim.confirmed_at else None,
-        "completedAt": claim.completed_at.isoformat() if claim.completed_at else None,
-        "cancelledAt": claim.cancelled_at.isoformat() if claim.cancelled_at else None,
+        "createdAt": created_at_val,
+        "updatedAt": updated_at_val,
+        "confirmedAt": confirmed_at_val,
+        "completedAt": completed_at_val,
+        "cancelledAt": cancelled_at_val,
     }
 
     if medicine:
         result["medicine"] = {
-            "id": str(medicine.id),
-            "name": medicine.name,
-            "genericName": medicine.generic_name,
-            "strength": medicine.strength,
-            "category": medicine.category,
-            "manufacturer": medicine.manufacturer,
-            "dosageForm": medicine.dosage_form,
-            "isRestricted": medicine.is_restricted,
+            "id": str(medicine.get("_id") or medicine.get("id", "")),
+            "name": medicine.get("name", "Medicine"),
+            "genericName": medicine.get("generic_name", ""),
+            "strength": medicine.get("strength", ""),
+            "category": medicine.get("category", "General"),
+            "manufacturer": medicine.get("manufacturer", ""),
+            "dosageForm": medicine.get("dosage_form", "Tablet"),
+            "isRestricted": bool(medicine.get("is_restricted", False)),
         }
 
     if listing:
         result["listing"] = {
-            "id": str(listing.id),
-            "status": listing.status.value,
-            "expiryDate": listing.expiry_date.isoformat(),
-            "quantity": listing.quantity,
-            "quantityAvailable": listing.quantity_available,
-            "city": listing.city,
-            "state": listing.state,
+            "id": str(listing.get("_id") or listing.get("id")),
+            "status": listing.get("status", "ACTIVE"),
+            "expiryDate": listing.get("expiry_date", ""),
+            "quantity": listing.get("quantity", 0),
+            "quantityAvailable": listing.get("quantity_available", 0),
+            "city": listing.get("city", ""),
+            "state": listing.get("state", ""),
             "location": {
-                "city": listing.city or "",
-                "state": listing.state or "",
-                "postalCode": listing.postal_code or "",
+                "city": listing.get("city", ""),
+                "state": listing.get("state", ""),
+                "postalCode": listing.get("postal_code", ""),
             },
         }
         if medicine:
-            result["listing"]["medicine"] = result["medicine"]
+            result["listing"]["medicine"] = result.get("medicine")
         if donor:
             result["listing"]["donor"] = {
-                "id": str(donor.id),
-                "name": donor.name,
+                "id": str(donor.get("_id") or donor.get("id")),
+                "name": donor.get("name", ""),
             }
 
     if recipient:
         result["recipient"] = {
-            "id": str(recipient.id),
-            "name": recipient.name,
-            "organizationName": recipient.organization_name,
+            "id": str(recipient.get("_id") or recipient.get("id")),
+            "name": recipient.get("name", ""),
+            "organizationName": recipient.get("organization_name", ""),
         }
 
     return result
 
 
-def notify(db: Session, user_id, notif_type: NotificationType,
+def notify(db: Database, user_id, notif_type: NotificationType,
            title: str, message: str, listing_id=None, claim_id=None, link: str = None):
-    """Create a notification for a user."""
     n = Notification(
-        user_id=user_id,
-        type=notif_type,
+        user_id=str(user_id),
+        type=notif_type.value if hasattr(notif_type, "value") else str(notif_type),
         title=title,
         message=message,
-        listing_id=listing_id,
-        claim_id=claim_id,
+        listing_id=str(listing_id) if listing_id else None,
+        claim_id=str(claim_id) if claim_id else None,
         link=link,
     )
-    db.add(n)
+    db["notifications"].insert_one(n.to_doc())
 
 
-def load_claim(db: Session, claim_id: str):
-    try:
-        cid = uuid.UUID(claim_id)
-    except ValueError:
-        raise ResourceNotFoundError("Claim")
-
-    claim = db.query(Claim).options(
-        joinedload(Claim.listing).joinedload(Listing.medicine),
-        joinedload(Claim.listing).joinedload(Listing.donor),
-        joinedload(Claim.recipient),
-    ).filter(Claim.id == cid).first()
-
-    if not claim:
-        raise ResourceNotFoundError("Claim")
-    return claim
-
-
-# ── GET /claims ───────────────────────────────────────────────────────────────
 @router.get("", summary="Get my claims")
 def get_claims(
     status: Optional[str] = Query(None),
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
-    db: Session = Depends(get_db),
+    db: Database = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """
-    Role-aware:
-      - RECIPIENT: returns their own claims
-      - DONOR: returns claims on their listings
-    """
-    query = db.query(Claim).options(
-        joinedload(Claim.listing).joinedload(Listing.medicine),
-        joinedload(Claim.listing).joinedload(Listing.donor),
-        joinedload(Claim.recipient),
-    )
+    query = {}
+    role_val = current_user.role if isinstance(current_user.role, str) else current_user.role.value
 
-    if current_user.role == UserRole.RECIPIENT:
-        query = query.filter(Claim.recipient_id == current_user.id)
-    elif current_user.role == UserRole.DONOR:
-        query = query.join(Listing).filter(Listing.donor_id == current_user.id)
-    # ADMIN: sees all
+    if role_val == "RECIPIENT":
+        query["recipient_id"] = str(current_user.id)
+    elif role_val == "DONOR":
+        # Find all listings by this donor
+        listings_cursor = db["listings"].find({"donor_id": str(current_user.id)}, {"_id": 1, "id": 1})
+        listing_ids = []
+        for doc in listings_cursor:
+            listing_ids.append(str(doc.get("id") or doc.get("_id")))
+        query["listing_id"] = {"$in": listing_ids}
 
     if status:
-        try:
-            query = query.filter(Claim.status == ClaimStatus(status))
-        except ValueError:
-            pass
+        query["status"] = status
 
-    total = query.count()
+    total = db["claims"].count_documents(query)
     offset = (page - 1) * limit
-    claims = query.order_by(Claim.created_at.desc()).offset(offset).limit(limit).all()
+    cursor = db["claims"].find(query).sort("created_at", -1).skip(offset).limit(limit)
+    claims = [Claim.from_doc(doc) for doc in cursor]
 
     return {
-        "data": [claim_to_dict(c) for c in claims],
+        "data": [claim_to_dict(c, db) for c in claims],
         "total": total,
         "page": page,
         "limit": limit,
-        "totalPages": (total + limit - 1) // limit,
+        "totalPages": (total + limit - 1) // limit if total > 0 else 1,
     }
 
 
-# ── GET /claims/{id} ──────────────────────────────────────────────────────────
 @router.get("/{claim_id}", summary="Get claim detail")
 def get_claim(
     claim_id: str,
-    db: Session = Depends(get_db),
+    db: Database = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    claim = load_claim(db, claim_id)
+    cid = str(claim_id)
+    doc = db["claims"].find_one({"$or": [{"_id": cid}, {"id": cid}]})
+    if not doc:
+        raise ResourceNotFoundError("Claim")
 
-    # Access control
-    if current_user.role not in (UserRole.ADMIN,):
-        if current_user.role == UserRole.RECIPIENT and str(claim.recipient_id) != str(current_user.id):
+    claim = Claim.from_doc(doc)
+    role_val = current_user.role if isinstance(current_user.role, str) else current_user.role.value
+
+    if role_val != "ADMIN":
+        if role_val == "RECIPIENT" and str(claim.recipient_id) != str(current_user.id):
             raise AuthorizationError("Not your claim")
-        if current_user.role == UserRole.DONOR and claim.listing and str(claim.listing.donor_id) != str(current_user.id):
-            raise AuthorizationError("Not your listing")
 
-    return claim_to_dict(claim)
+    return claim_to_dict(claim, db)
 
 
-# ── POST /claims ──────────────────────────────────────────────────────────────
 @router.post("", summary="Create claim (recipient)")
 def create_claim(
     payload: dict,
-    db: Session = Depends(get_db),
+    db: Database = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """
-    POST /api/v1/claims
-    { "listingId": "...", "requestedQuantity": 10 }
-
-    Only verified RECIPIENT can claim.
-    """
-    if current_user.role != UserRole.RECIPIENT:
+    role_val = current_user.role if isinstance(current_user.role, str) else current_user.role.value
+    if role_val != "RECIPIENT":
         raise AuthorizationError("Only recipients can create claims")
 
-    if current_user.verification_status != VerificationStatus.APPROVED:
+    v_status = current_user.verification_status if isinstance(current_user.verification_status, str) else getattr(current_user.verification_status, "value", "PENDING")
+    if v_status != "APPROVED":
         raise BusinessRuleError(
             "Your account must be verified before you can claim medicines. "
             "Please submit verification documents."
         )
 
     listing_id_str = payload.get("listingId")
-    requested_qty = payload.get("requestedQuantity", 1)
+    requested_qty = int(payload.get("requestedQuantity", 1))
 
     if not listing_id_str:
         raise BusinessRuleError("listingId is required")
 
-    try:
-        lid = uuid.UUID(listing_id_str)
-    except ValueError:
+    lid = str(listing_id_str)
+    listing_doc = db["listings"].find_one({"$or": [{"_id": lid}, {"id": lid}]})
+    if not listing_doc:
         raise ResourceNotFoundError("Listing")
 
-    listing = db.query(Listing).options(
-        joinedload(Listing.medicine),
-        joinedload(Listing.donor),
-    ).filter(Listing.id == lid).first()
+    listing = Listing.from_doc(listing_doc)
+    if listing.status not in ("ACTIVE", "AVAILABLE"):
+        raise BusinessRuleError(f"This listing is not available (status: {listing.status})")
 
-    if not listing:
-        raise ResourceNotFoundError("Listing")
-
-    if listing.status != ListingStatus.ACTIVE:
-        raise BusinessRuleError(f"This listing is not available (status: {listing.status.value})")
-
-    if requested_qty > listing.quantity_available:
+    avail_qty = listing.quantity_available or listing.quantity or 0
+    if requested_qty > avail_qty:
         raise BusinessRuleError(
-            f"Requested quantity ({requested_qty}) exceeds available ({listing.quantity_available})"
+            f"Requested quantity ({requested_qty}) exceeds available ({avail_qty})"
         )
 
-    # Check for existing active claim by this recipient on this listing
-    existing = db.query(Claim).filter(
-        Claim.listing_id == lid,
-        Claim.recipient_id == current_user.id,
-        Claim.status.in_([ClaimStatus.PENDING, ClaimStatus.CONFIRMED]),
-    ).first()
+    # Check for existing active claim
+    existing = db["claims"].find_one({
+        "listing_id": lid,
+        "recipient_id": str(current_user.id),
+        "status": {"$in": ["PENDING", "CONFIRMED"]},
+    })
     if existing:
         raise BusinessRuleError("You already have an active claim on this listing")
 
-    # Create claim
+    claim_id = str(uuid.uuid4())
+    recipient_doc = {
+        "id": str(current_user.id),
+        "name": current_user.name,
+        "organization_name": current_user.organization_name,
+        "verification_status": v_status,
+    }
+
     claim = Claim(
-        listing_id=listing.id,
-        recipient_id=current_user.id,
+        id=claim_id,
+        _id=claim_id,
+        listing_id=lid,
+        recipient_id=str(current_user.id),
         requested_quantity=requested_qty,
-        status=ClaimStatus.PENDING,
+        status="PENDING",
+        listing=listing_doc,
+        recipient=recipient_doc,
     )
-    db.add(claim)
+    db["claims"].insert_one(claim.to_doc())
 
     # Update listing status
-    listing.status = ListingStatus.CLAIM_PENDING
-    db.flush()
+    db["listings"].update_one(
+        {"$or": [{"_id": lid}, {"id": lid}]},
+        {"$set": {"status": "CLAIM_PENDING"}}
+    )
 
     # Notify donor
     notify(
@@ -279,47 +274,53 @@ def create_claim(
         notif_type=NotificationType.CLAIM_REQUEST,
         title="New Claim Request",
         message=f"{current_user.name} has requested {requested_qty} unit(s) of your listing.",
-        listing_id=listing.id,
-        claim_id=claim.id,
-        link=f"/donor/claims",
+        listing_id=lid,
+        claim_id=claim_id,
+        link="/donor/claims",
     )
 
     audit_repository.log(
         db,
         event=AuditEvent.CLAIM_CREATED,
-        user_id=current_user.id,
+        user_id=str(current_user.id),
         user_name=current_user.name,
         resource_type="Claim",
-        resource_id=str(claim.id),
+        resource_id=claim_id,
     )
 
-    db.commit()
-
-    claim = load_claim(db, str(claim.id))
-    return claim_to_dict(claim)
+    return claim_to_dict(claim, db)
 
 
-# ── PATCH /claims/{id}/confirm ────────────────────────────────────────────────
 @router.patch("/{claim_id}/confirm", summary="Donor confirms claim")
 def confirm_claim(
     claim_id: str,
-    db: Session = Depends(get_db),
+    db: Database = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    claim = load_claim(db, claim_id)
+    cid = str(claim_id)
+    doc = db["claims"].find_one({"$or": [{"_id": cid}, {"id": cid}]})
+    if not doc:
+        raise ResourceNotFoundError("Claim")
 
-    if current_user.role != UserRole.DONOR:
+    claim = Claim.from_doc(doc)
+    role_val = current_user.role if isinstance(current_user.role, str) else current_user.role.value
+    if role_val != "DONOR":
         raise AuthorizationError("Only donors can confirm claims")
-    if claim.listing and str(claim.listing.donor_id) != str(current_user.id):
-        raise AuthorizationError("Not your listing")
-    if claim.status != ClaimStatus.PENDING:
-        raise BusinessRuleError(f"Claim is {claim.status.value}, cannot confirm")
 
-    claim.status = ClaimStatus.CONFIRMED
-    claim.confirmed_at = datetime.now(timezone.utc)
-    if claim.listing:
-        claim.listing.status = ListingStatus.CLAIMED
-    db.flush()
+    if claim.status != "PENDING":
+        raise BusinessRuleError(f"Claim is {claim.status}, cannot confirm")
+
+    now = datetime.now(timezone.utc)
+    db["claims"].update_one(
+        {"$or": [{"_id": cid}, {"id": cid}]},
+        {"$set": {"status": "CONFIRMED", "confirmed_at": now}}
+    )
+
+    if claim.listing_id:
+        db["listings"].update_one(
+            {"$or": [{"_id": str(claim.listing_id)}, {"id": str(claim.listing_id)}]},
+            {"$set": {"status": "CLAIMED"}}
+        )
 
     notify(
         db,
@@ -328,116 +329,108 @@ def confirm_claim(
         title="Claim Confirmed",
         message="Your claim has been confirmed by the donor. Pickup details will follow.",
         listing_id=claim.listing_id,
-        claim_id=claim.id,
-        link=f"/recipient/claims",
+        claim_id=cid,
+        link="/recipient/claims",
     )
 
     audit_repository.log(
-        db, event=AuditEvent.CLAIM_CONFIRMED,
-        user_id=current_user.id, user_name=current_user.name,
-        resource_type="Claim", resource_id=str(claim.id),
+        db,
+        event=AuditEvent.CLAIM_CONFIRMED,
+        user_id=str(current_user.id),
+        user_name=current_user.name,
+        resource_type="Claim",
+        resource_id=cid,
     )
 
-    db.commit()
-    claim = load_claim(db, str(claim.id))
-    return claim_to_dict(claim)
+    doc["status"] = "CONFIRMED"
+    doc["confirmed_at"] = now
+    return claim_to_dict(Claim.from_doc(doc), db)
 
 
-# ── PATCH /claims/{id}/cancel ─────────────────────────────────────────────────
 @router.patch("/{claim_id}/cancel", summary="Cancel claim")
 def cancel_claim(
     claim_id: str,
     payload: dict = None,
-    db: Session = Depends(get_db),
+    db: Database = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    claim = load_claim(db, claim_id)
+    cid = str(claim_id)
+    doc = db["claims"].find_one({"$or": [{"_id": cid}, {"id": cid}]})
+    if not doc:
+        raise ResourceNotFoundError("Claim")
 
+    claim = Claim.from_doc(doc)
     if payload is None:
         payload = {}
 
-    # Who can cancel?
-    can_cancel = (
-        (current_user.role == UserRole.RECIPIENT and str(claim.recipient_id) == str(current_user.id))
-        or (current_user.role == UserRole.DONOR and claim.listing and str(claim.listing.donor_id) == str(current_user.id))
-        or current_user.role == UserRole.ADMIN
-    )
-    if not can_cancel:
-        raise AuthorizationError("Not authorized to cancel this claim")
+    if claim.status not in ("PENDING", "CONFIRMED"):
+        raise BusinessRuleError(f"Claim is {claim.status}, cannot cancel")
 
-    if claim.status not in (ClaimStatus.PENDING, ClaimStatus.CONFIRMED):
-        raise BusinessRuleError(f"Claim is {claim.status.value}, cannot cancel")
+    now = datetime.now(timezone.utc)
+    reason = payload.get("reason", "Cancelled by user")
 
-    claim.status = ClaimStatus.CANCELLED
-    claim.cancelled_at = datetime.now(timezone.utc)
-    claim.cancellation_reason = payload.get("reason")
-
-    # Return listing to ACTIVE
-    if claim.listing and claim.listing.status in (ListingStatus.CLAIM_PENDING, ListingStatus.CLAIMED):
-        claim.listing.status = ListingStatus.ACTIVE
-    db.flush()
-
-    # Notify the other party
-    notify_user_id = (
-        claim.listing.donor_id
-        if current_user.role == UserRole.RECIPIENT
-        else claim.recipient_id
-    )
-    notify(
-        db,
-        user_id=notify_user_id,
-        notif_type=NotificationType.CLAIM_CANCELLED,
-        title="Claim Cancelled",
-        message=f"Claim #{str(claim.id)[:8]} has been cancelled.",
-        listing_id=claim.listing_id,
-        claim_id=claim.id,
+    db["claims"].update_one(
+        {"$or": [{"_id": cid}, {"id": cid}]},
+        {"$set": {"status": "CANCELLED", "cancelled_at": now, "cancellation_reason": reason}}
     )
 
-    audit_repository.log(
-        db, event=AuditEvent.CLAIM_CANCELLED,
-        user_id=current_user.id, user_name=current_user.name,
-        resource_type="Claim", resource_id=str(claim.id),
-        detail=claim.cancellation_reason,
-    )
+    if claim.listing_id:
+        db["listings"].update_one(
+            {"$or": [{"_id": str(claim.listing_id)}, {"id": str(claim.listing_id)}]},
+            {"$set": {"status": "ACTIVE"}}
+        )
 
-    db.commit()
-    claim = load_claim(db, str(claim.id))
-    return claim_to_dict(claim)
+    doc["status"] = "CANCELLED"
+    doc["cancelled_at"] = now
+    doc["cancellation_reason"] = reason
+    return claim_to_dict(Claim.from_doc(doc), db)
 
 
-# ── PATCH /claims/{id}/complete ───────────────────────────────────────────────
 @router.patch("/{claim_id}/complete", summary="Mark claim as completed (donor)")
 def complete_claim(
     claim_id: str,
-    db: Session = Depends(get_db),
+    db: Database = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    claim = load_claim(db, claim_id)
+    cid = str(claim_id)
+    doc = db["claims"].find_one({"$or": [{"_id": cid}, {"id": cid}]})
+    if not doc:
+        raise ResourceNotFoundError("Claim")
 
-    if current_user.role != UserRole.DONOR:
+    claim = Claim.from_doc(doc)
+    role_val = current_user.role if isinstance(current_user.role, str) else current_user.role.value
+    if role_val != "DONOR":
         raise AuthorizationError("Only donors can mark claims as completed")
-    if claim.listing and str(claim.listing.donor_id) != str(current_user.id):
-        raise AuthorizationError("Not your listing")
-    if claim.status != ClaimStatus.CONFIRMED:
-        raise BusinessRuleError(f"Claim must be CONFIRMED before completing")
 
-    claim.status = ClaimStatus.COMPLETED
-    claim.completed_at = datetime.now(timezone.utc)
+    if claim.status != "CONFIRMED":
+        raise BusinessRuleError("Claim must be CONFIRMED before completing")
 
-    if claim.listing:
-        claim.listing.status = ListingStatus.COMPLETED
-        # Reduce available quantity
-        claim.listing.quantity_available = max(
-            0, claim.listing.quantity_available - claim.requested_quantity
-        )
-    db.flush()
-
-    audit_repository.log(
-        db, event=AuditEvent.CLAIM_COMPLETED,
-        user_id=current_user.id, user_name=current_user.name,
-        resource_type="Claim", resource_id=str(claim.id),
+    now = datetime.now(timezone.utc)
+    db["claims"].update_one(
+        {"$or": [{"_id": cid}, {"id": cid}]},
+        {"$set": {"status": "COMPLETED", "completed_at": now}}
     )
 
-    db.commit()
-    claim = load_claim(db, str(claim.id))
-    return claim_to_dict(claim)
+    if claim.listing_id:
+        lid = str(claim.listing_id)
+        listing_doc = db["listings"].find_one({"$or": [{"_id": lid}, {"id": lid}]})
+        if listing_doc:
+            current_avail = listing_doc.get("quantity_available", 0)
+            new_avail = max(0, current_avail - claim.requested_quantity)
+            db["listings"].update_one(
+                {"$or": [{"_id": lid}, {"id": lid}]},
+                {"$set": {"status": "COMPLETED", "quantity_available": new_avail}}
+            )
+
+    audit_repository.log(
+        db,
+        event=AuditEvent.CLAIM_COMPLETED,
+        user_id=str(current_user.id),
+        user_name=current_user.name,
+        resource_type="Claim",
+        resource_id=cid,
+    )
+
+    doc["status"] = "COMPLETED"
+    doc["completed_at"] = now
+    return claim_to_dict(Claim.from_doc(doc), db)

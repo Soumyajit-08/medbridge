@@ -1,16 +1,11 @@
 """
 app/routers/notifications.py
 ──────────────────────────────────────────────────────────────────────────────
-Notification endpoints.
-
-GET  /notifications            → Get my notifications (paginated)
-PATCH /notifications/{id}/read  → Mark one as read
-POST /notifications/read-all   → Mark all as read
+Notification endpoints for MongoDB.
 """
 
-import uuid
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy.orm import Session
+from pymongo.database import Database
 
 from app.db.session import get_db
 from app.core.dependencies import get_current_user
@@ -22,17 +17,20 @@ router = APIRouter(prefix="/notifications", tags=["Notifications"])
 
 
 def notif_to_dict(n: Notification) -> dict:
+    type_val = n.type if isinstance(n.type, str) else getattr(n.type, "value", str(n.type))
+    created_at_val = n.created_at.isoformat() if hasattr(n.created_at, "isoformat") else str(n.created_at or "")
+
     return {
         "id": str(n.id),
         "userId": str(n.user_id),
         "listingId": str(n.listing_id) if n.listing_id else None,
         "claimId": str(n.claim_id) if n.claim_id else None,
-        "type": n.type.value,
+        "type": type_val,
         "title": n.title,
         "message": n.message,
         "link": n.link,
-        "read": n.read,
-        "createdAt": n.created_at.isoformat(),
+        "read": bool(n.read or n.is_read),
+        "createdAt": created_at_val,
     }
 
 
@@ -40,17 +38,19 @@ def notif_to_dict(n: Notification) -> dict:
 def get_notifications(
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=50),
-    db: Session = Depends(get_db),
+    db: Database = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    query = db.query(Notification).filter(
-        Notification.user_id == current_user.id
-    )
+    query = {"user_id": str(current_user.id)}
+    total = db["notifications"].count_documents(query)
+    unread_count = db["notifications"].count_documents({
+        "user_id": str(current_user.id),
+        "$or": [{"read": False}, {"is_read": False}, {"read": {"$exists": False}}],
+    })
 
-    total = query.count()
-    unread_count = query.filter(Notification.read == False).count()
     offset = (page - 1) * limit
-    notifs = query.order_by(Notification.created_at.desc()).offset(offset).limit(limit).all()
+    cursor = db["notifications"].find(query).sort("created_at", -1).skip(offset).limit(limit)
+    notifs = [Notification.from_doc(doc) for doc in cursor]
 
     return {
         "data": [notif_to_dict(n) for n in notifs],
@@ -58,65 +58,58 @@ def get_notifications(
         "unreadCount": unread_count,
         "page": page,
         "limit": limit,
-        "totalPages": (total + limit - 1) // limit,
+        "totalPages": (total + limit - 1) // limit if total > 0 else 1,
     }
 
 
 @router.patch("/{notification_id}/read", summary="Mark notification as read")
 def mark_read(
     notification_id: str,
-    db: Session = Depends(get_db),
+    db: Database = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    try:
-        nid = uuid.UUID(notification_id)
-    except ValueError:
+    nid = str(notification_id)
+    doc = db["notifications"].find_one({"$or": [{"_id": nid}, {"id": nid}]})
+    if not doc:
         raise ResourceNotFoundError("Notification")
 
-    notif = db.query(Notification).filter(Notification.id == nid).first()
-    if not notif:
-        raise ResourceNotFoundError("Notification")
-
-    if str(notif.user_id) != str(current_user.id):
+    if str(doc.get("user_id")) != str(current_user.id):
         raise AuthorizationError("Not your notification")
 
-    notif.read = True
-    db.commit()
-    db.refresh(notif)
-    return notif_to_dict(notif)
+    db["notifications"].update_one(
+        {"$or": [{"_id": nid}, {"id": nid}]},
+        {"$set": {"read": True, "is_read": True}}
+    )
+    doc["read"] = True
+    doc["is_read"] = True
+    return notif_to_dict(Notification.from_doc(doc))
 
 
 @router.post("/read-all", summary="Mark all notifications as read")
 def mark_all_read(
-    db: Session = Depends(get_db),
+    db: Database = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    db.query(Notification).filter(
-        Notification.user_id == current_user.id,
-        Notification.read == False,
-    ).update({"read": True})
-    db.commit()
+    db["notifications"].update_many(
+        {"user_id": str(current_user.id)},
+        {"$set": {"read": True, "is_read": True}}
+    )
     return {"message": "All notifications marked as read"}
 
 
 @router.delete("/{notification_id}", summary="Delete notification")
 def delete_notification(
     notification_id: str,
-    db: Session = Depends(get_db),
+    db: Database = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    try:
-        nid = uuid.UUID(notification_id)
-    except ValueError:
+    nid = str(notification_id)
+    doc = db["notifications"].find_one({"$or": [{"_id": nid}, {"id": nid}]})
+    if not doc:
         raise ResourceNotFoundError("Notification")
 
-    notif = db.query(Notification).filter(Notification.id == nid).first()
-    if not notif:
-        raise ResourceNotFoundError("Notification")
-
-    if str(notif.user_id) != str(current_user.id):
+    if str(doc.get("user_id")) != str(current_user.id):
         raise AuthorizationError("Not your notification")
 
-    db.delete(notif)
-    db.commit()
+    db["notifications"].delete_one({"$or": [{"_id": nid}, {"id": nid}]})
     return {"message": "Notification deleted"}

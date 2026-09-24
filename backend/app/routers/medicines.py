@@ -1,15 +1,12 @@
 """
 app/routers/medicines.py
 ──────────────────────────────────────────────────────────────────────────────
-Medicine catalogue endpoints.
-
-GET  /medicines         → Search medicines by name/generic name (autocomplete)
-GET  /medicines/{id}    → Get single medicine detail
+Medicine catalogue endpoints for MongoDB.
 """
 
+import re
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy.orm import Session
-from sqlalchemy import or_, func
+from pymongo.database import Database
 from typing import Optional
 
 from app.db.session import get_db
@@ -30,7 +27,7 @@ def medicine_to_dict(m: Medicine) -> dict:
         "manufacturer": m.manufacturer,
         "dosageForm": m.dosage_form,
         "strength": m.strength,
-        "isRestricted": m.is_restricted,
+        "isRestricted": bool(m.is_restricted),
     }
 
 
@@ -39,48 +36,34 @@ def search_medicines(
     q: Optional[str] = Query(None, description="Search query (name or generic name)"),
     category: Optional[str] = Query(None),
     limit: int = Query(20, ge=1, le=100),
-    db: Session = Depends(get_db),
+    db: Database = Depends(get_db),
     _: User = Depends(get_current_user),
 ):
-    """
-    GET /api/v1/medicines?q=paracetamol
-
-    Searches medicines by name OR generic_name (case-insensitive).
-    Used by the listing form's medicine autocomplete input.
-    """
-    query = db.query(Medicine).filter(Medicine.is_active == True)
+    query = {"is_active": {"$ne": False}}
 
     if q:
-        q_lower = q.lower().strip()
-        query = query.filter(
-            or_(
-                func.lower(Medicine.name).contains(q_lower),
-                func.lower(Medicine.generic_name).contains(q_lower),
-            )
-        )
+        escaped_q = re.escape(q.strip())
+        query["$or"] = [
+            {"name": {"$regex": escaped_q, "$options": "i"}},
+            {"generic_name": {"$regex": escaped_q, "$options": "i"}},
+        ]
 
     if category:
-        query = query.filter(func.lower(Medicine.category) == category.lower())
+        query["category"] = {"$regex": f"^{category.strip()}$", "$options": "i"}
 
-    medicines = query.order_by(Medicine.name).limit(limit).all()
+    cursor = db["medicines"].find(query).sort("name", 1).limit(limit)
+    medicines = [Medicine.from_doc(doc) for doc in cursor]
     return [medicine_to_dict(m) for m in medicines]
 
 
 @router.get("/{medicine_id}", summary="Get medicine detail")
 def get_medicine(
     medicine_id: str,
-    db: Session = Depends(get_db),
+    db: Database = Depends(get_db),
     _: User = Depends(get_current_user),
 ):
-    """GET /api/v1/medicines/{id}"""
-    import uuid
-    try:
-        mid = uuid.UUID(medicine_id)
-    except ValueError:
+    mid = str(medicine_id)
+    doc = db["medicines"].find_one({"$or": [{"_id": mid}, {"id": mid}], "is_active": {"$ne": False}})
+    if not doc:
         raise ResourceNotFoundError("Medicine")
-
-    med = db.query(Medicine).filter(Medicine.id == mid, Medicine.is_active == True).first()
-    if not med:
-        raise ResourceNotFoundError("Medicine")
-
-    return medicine_to_dict(med)
+    return medicine_to_dict(Medicine.from_doc(doc))

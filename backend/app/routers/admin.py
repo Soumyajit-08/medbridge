@@ -1,7 +1,7 @@
 """
 app/routers/admin.py
 ──────────────────────────────────────────────────────────────────────────────
-Admin-only endpoints.
+Admin-only endpoints for MongoDB.
 
 GET   /admin/dashboard                    → Overall platform stats
 GET   /admin/verifications               → Pending verification submissions
@@ -21,15 +21,12 @@ from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy.orm import Session, joinedload
-from sqlalchemy import func
+from pymongo.database import Database
 
 from app.db.session import get_db
 from app.core.dependencies import require_admin
 from app.models.user import User
 from app.models.listing import Listing
-from app.models.claim import Claim
-from app.models.need import Need
 from app.models.verification_submission import VerificationSubmission
 from app.models.report import Report
 from app.models.audit_log import AuditLog
@@ -40,6 +37,7 @@ from app.utils.enums import (
 )
 from app.utils.exceptions import ResourceNotFoundError, BusinessRuleError
 from app.repositories.audit_repository import audit_repository
+from app.routers.listings import listing_to_dict
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
 
@@ -47,45 +45,51 @@ router = APIRouter(prefix="/admin", tags=["Admin"])
 # ── GET /admin/dashboard ──────────────────────────────────────────────────────
 @router.get("/dashboard", summary="Admin dashboard stats")
 def admin_dashboard(
-    db: Session = Depends(get_db),
+    db: Database = Depends(get_db),
     current_user: User = Depends(require_admin),
 ):
-    total_users = db.query(func.count(User.id)).filter(User.is_active == True).scalar() or 0
-    total_donors = db.query(func.count(User.id)).filter(
-        User.is_active == True, User.role == UserRole.DONOR
-    ).scalar() or 0
-    total_recipients = db.query(func.count(User.id)).filter(
-        User.is_active == True, User.role == UserRole.RECIPIENT
-    ).scalar() or 0
-    pending_verifications = db.query(func.count(VerificationSubmission.id)).filter(
-        VerificationSubmission.status == VerificationStatus.PENDING
-    ).scalar() or 0
+    total_users = db["users"].count_documents({"is_active": {"$ne": False}})
+    total_donors = db["users"].count_documents({
+        "is_active": {"$ne": False},
+        "role": UserRole.DONOR.value
+    })
+    total_recipients = db["users"].count_documents({
+        "is_active": {"$ne": False},
+        "role": UserRole.RECIPIENT.value
+    })
+    pending_verifications = db["verification_submissions"].count_documents({
+        "status": VerificationStatus.PENDING.value
+    })
 
-    total_listings = db.query(func.count(Listing.id)).scalar() or 0
-    active_listings = db.query(func.count(Listing.id)).filter(
-        Listing.status == ListingStatus.ACTIVE
-    ).scalar() or 0
-    completed_listings = db.query(func.count(Listing.id)).filter(
-        Listing.status == ListingStatus.COMPLETED
-    ).scalar() or 0
-    expired_listings = db.query(func.count(Listing.id)).filter(
-        Listing.status == ListingStatus.EXPIRED
-    ).scalar() or 0
+    total_listings = db["listings"].count_documents({})
+    active_listings = db["listings"].count_documents({"status": ListingStatus.ACTIVE.value})
+    completed_listings = db["listings"].count_documents({"status": ListingStatus.COMPLETED.value})
+    expired_listings = db["listings"].count_documents({"status": ListingStatus.EXPIRED.value})
 
-    total_claims = db.query(func.count(Claim.id)).scalar() or 0
-    completed_claims = db.query(func.count(Claim.id)).filter(
-        Claim.status == ClaimStatus.COMPLETED
-    ).scalar() or 0
+    total_claims = db["claims"].count_documents({})
+    pending_claims = db["claims"].count_documents({"status": ClaimStatus.PENDING.value})
+    completed_claims = db["claims"].count_documents({"status": ClaimStatus.COMPLETED.value})
 
-    total_units_donated = db.query(
-        func.coalesce(func.sum(Claim.requested_quantity), 0)
-    ).filter(Claim.status == ClaimStatus.COMPLETED).scalar() or 0
+    pipeline = [
+        {"$match": {"status": ClaimStatus.COMPLETED.value}},
+        {"$group": {"_id": None, "total": {"$sum": "$requested_quantity"}}}
+    ]
+    sum_res = list(db["claims"].aggregate(pipeline))
+    total_units_donated = sum_res[0]["total"] if sum_res else 0
 
-    open_reports = db.query(func.count(Report.id)).filter(
-        Report.status.in_([ReportStatus.PENDING, ReportStatus.OPEN])
-    ).scalar() or 0
+    open_reports = db["reports"].count_documents({
+        "status": {"$in": [ReportStatus.PENDING.value, ReportStatus.OPEN.value]}
+    })
 
+    # Return flat keys that match frontend AdminDashboardStats interface
+    # as well as nested keys for backwards compatibility
     return {
+        "totalUsers": total_users,
+        "pendingVerifications": pending_verifications,
+        "activeListings": active_listings,
+        "pendingClaims": pending_claims,
+        "reports": open_reports,
+        "completedTransfers": completed_claims,
         "users": {
             "total": total_users,
             "donors": total_donors,
@@ -100,13 +104,11 @@ def admin_dashboard(
         },
         "claims": {
             "total": total_claims,
+            "pending": pending_claims,
             "completed": completed_claims,
         },
         "impact": {
             "totalUnitsDonated": int(total_units_donated),
-        },
-        "reports": {
-            "open": open_reports,
         },
     }
 
@@ -117,128 +119,240 @@ def get_verifications(
     status: Optional[str] = Query(None),
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
-    db: Session = Depends(get_db),
+    db: Database = Depends(get_db),
     _: User = Depends(require_admin),
 ):
-    query = db.query(VerificationSubmission).options(
-        joinedload(VerificationSubmission.recipient),
-        joinedload(VerificationSubmission.reviewed_by),
-    )
+    now = datetime.now(timezone.utc)
 
+    # Sync any registered RECIPIENT users who are PENDING into verification_submissions
+    pending_recipients = list(db["users"].find({
+        "role": UserRole.RECIPIENT.value,
+        "verification_status": VerificationStatus.PENDING.value,
+        "is_active": {"$ne": False}
+    }))
+    for u in pending_recipients:
+        uid = str(u.get("_id") or u.get("id"))
+        existing_sub = db["verification_submissions"].find_one({
+            "$or": [{"user_id": uid}, {"recipient_id": uid}, {"_id": uid}, {"id": uid}]
+        })
+        if not existing_sub:
+            sub_id = str(uuid.uuid4())
+            db["verification_submissions"].insert_one({
+                "_id": sub_id,
+                "id": sub_id,
+                "user_id": uid,
+                "recipient_id": uid,
+                "organization_name": u.get("organization_name") or u.get("name") or "Recipient Organization",
+                "organization_type": u.get("organization_type") or "NGO",
+                "registration_number": "PENDING_SUBMISSION",
+                "documents": [],
+                "document_url": None,
+                "document_name": "Awaiting Document Upload",
+                "status": VerificationStatus.PENDING.value,
+                "created_at": u.get("created_at") or now,
+                "updated_at": now,
+            })
+
+    query = {}
     if status:
-        try:
-            query = query.filter(VerificationSubmission.status == VerificationStatus(status))
-        except ValueError:
-            pass
+        query["status"] = status
     else:
-        # Default: show pending first
-        query = query.filter(VerificationSubmission.status == VerificationStatus.PENDING)
+        query["status"] = VerificationStatus.PENDING.value
 
-    total = query.count()
     offset = (page - 1) * limit
-    subs = query.order_by(VerificationSubmission.submitted_at.desc()).offset(offset).limit(limit).all()
+    cursor = db["verification_submissions"].find(query).sort("created_at", -1).skip(offset).limit(limit)
 
-    def sub_to_dict(s):
-        return {
-            "id": str(s.id),
-            "recipientId": str(s.recipient_id),
-            "organizationName": (s.recipient.organization_name or s.recipient.name) if s.recipient else "",
-            "organizationType": (s.recipient.organization_type.value if s.recipient and s.recipient.organization_type else "NGO"),
+    results = []
+    for doc in cursor:
+        sub = VerificationSubmission.from_doc(doc)
+        rec_id = sub.user_id or sub.recipient_id
+        user_doc = None
+        if rec_id:
+            user_doc = db["users"].find_one({"$or": [{"_id": str(rec_id)}, {"id": str(rec_id)}]})
+
+        org_name = (user_doc.get("organization_name") if user_doc else None) or (user_doc.get("name") if user_doc else "") or sub.organization_name or "Recipient Organization"
+        org_type = (user_doc.get("organization_type") if user_doc else None) or sub.organization_type or "NGO"
+        if hasattr(org_type, "value"):
+            org_type = org_type.value
+
+        created_at_val = sub.created_at or sub.submitted_at or (user_doc.get("created_at") if user_doc else None) or now
+        created_at_str = created_at_val.isoformat() if hasattr(created_at_val, "isoformat") else str(created_at_val or "")
+        reviewed_at_str = sub.reviewed_at.isoformat() if hasattr(sub.reviewed_at, "isoformat") and sub.reviewed_at else (str(sub.reviewed_at) if sub.reviewed_at else None)
+
+        doc_url = (sub.documents[0] if sub.documents else None) or sub.document_url
+
+        results.append({
+            "id": str(sub.id),
+            "recipientId": str(rec_id),
+            "organizationName": org_name,
+            "organizationType": str(org_type),
             "recipient": {
-                "id": str(s.recipient.id),
-                "name": s.recipient.name,
-                "email": s.recipient.email,
-                "organizationName": s.recipient.organization_name,
-                "organizationType": s.recipient.organization_type.value if s.recipient.organization_type else None,
-            } if s.recipient else None,
-            "registrationNumber": s.registration_number,
-            "documentUrl": s.document_url,
-            "documentName": s.document_name,
-            "status": s.status.value,
-            "rejectionReason": s.rejection_reason,
-            "submittedAt": s.submitted_at.isoformat(),
-            "reviewedAt": s.reviewed_at.isoformat() if s.reviewed_at else None,
-        }
+                "id": str(user_doc["_id"]) if user_doc else str(rec_id),
+                "name": user_doc.get("name", "") if user_doc else "",
+                "email": user_doc.get("email", "") if user_doc else "",
+                "organizationName": user_doc.get("organization_name", "") if user_doc else org_name,
+                "organizationType": str(org_type),
+            } if user_doc else None,
+            "registrationNumber": sub.registration_number or "PENDING_SUBMISSION",
+            "documentUrl": doc_url,
+            "documentName": sub.document_name or (doc_url.split("/")[-1] if doc_url else "Awaiting Document Upload"),
+            "status": sub.status.value if hasattr(sub.status, "value") else str(sub.status),
+            "rejectionReason": sub.rejection_reason,
+            "submittedAt": created_at_str,
+            "reviewedAt": reviewed_at_str,
+        })
 
-    return [sub_to_dict(s) for s in subs]
+    return results
 
 
 # ── GET /admin/verifications/{id} ─────────────────────────────────────────────
 @router.get("/verifications/{submission_id}", summary="Get verification detail")
 def get_verification(
     submission_id: str,
-    db: Session = Depends(get_db),
+    db: Database = Depends(get_db),
     _: User = Depends(require_admin),
 ):
-    try:
-        sid = uuid.UUID(submission_id)
-    except ValueError:
-        raise ResourceNotFoundError("VerificationSubmission")
+    doc = db["verification_submissions"].find_one({
+        "$or": [
+            {"_id": submission_id},
+            {"id": submission_id},
+            {"user_id": submission_id},
+            {"recipient_id": submission_id}
+        ]
+    })
+    
+    user_doc = None
+    if not doc:
+        # Check if submission_id is a User ID
+        user_doc = db["users"].find_one({
+            "$or": [{"_id": submission_id}, {"id": submission_id}],
+            "role": UserRole.RECIPIENT.value
+        })
+        if not user_doc:
+            raise ResourceNotFoundError("VerificationSubmission")
+        
+        # Auto-create submission record
+        now = datetime.now(timezone.utc)
+        sub_id = str(uuid.uuid4())
+        doc = {
+            "_id": sub_id,
+            "id": sub_id,
+            "user_id": str(user_doc["_id"]),
+            "recipient_id": str(user_doc["_id"]),
+            "organization_name": user_doc.get("organization_name") or user_doc.get("name"),
+            "organization_type": user_doc.get("organization_type") or "NGO",
+            "registration_number": "PENDING_SUBMISSION",
+            "documents": [],
+            "document_url": None,
+            "document_name": "Awaiting Document Upload",
+            "status": user_doc.get("verification_status") or VerificationStatus.PENDING.value,
+            "created_at": user_doc.get("created_at") or now,
+            "updated_at": now,
+        }
+        db["verification_submissions"].insert_one(doc)
 
-    sub = db.query(VerificationSubmission).options(
-        joinedload(VerificationSubmission.recipient),
-        joinedload(VerificationSubmission.reviewed_by),
-    ).filter(VerificationSubmission.id == sid).first()
+    sub = VerificationSubmission.from_doc(doc)
+    rec_id = sub.user_id or sub.recipient_id
+    if not user_doc and rec_id:
+        user_doc = db["users"].find_one({"$or": [{"_id": str(rec_id)}, {"id": str(rec_id)}]})
 
-    if not sub:
-        raise ResourceNotFoundError("VerificationSubmission")
+    org_name = (user_doc.get("organization_name") if user_doc else None) or (user_doc.get("name") if user_doc else "") or sub.organization_name or ""
+    org_type = (user_doc.get("organization_type") if user_doc else None) or sub.organization_type or "NGO"
+    if hasattr(org_type, "value"):
+        org_type = org_type.value
+
+    created_at_val = sub.created_at or sub.submitted_at or (user_doc.get("created_at") if user_doc else None)
+    created_at_str = created_at_val.isoformat() if hasattr(created_at_val, "isoformat") else str(created_at_val or "")
+    reviewed_at_str = sub.reviewed_at.isoformat() if hasattr(sub.reviewed_at, "isoformat") and sub.reviewed_at else (str(sub.reviewed_at) if sub.reviewed_at else None)
+
+    doc_url = (sub.documents[0] if sub.documents else None) or sub.document_url
 
     return {
         "id": str(sub.id),
-        "recipientId": str(sub.recipient_id),
-        "organizationName": (sub.recipient.organization_name or sub.recipient.name) if sub.recipient else "",
-        "organizationType": (sub.recipient.organization_type.value if sub.recipient and sub.recipient.organization_type else "NGO"),
+        "recipientId": str(rec_id),
+        "organizationName": org_name,
+        "organizationType": str(org_type),
         "recipient": {
-            "id": str(sub.recipient.id),
-            "name": sub.recipient.name,
-            "email": sub.recipient.email,
-            "phone": sub.recipient.phone,
-            "organizationName": sub.recipient.organization_name,
-            "organizationType": sub.recipient.organization_type.value if sub.recipient.organization_type else None,
-            "verificationStatus": sub.recipient.verification_status.value if sub.recipient.verification_status else None,
-        } if sub.recipient else None,
-        "registrationNumber": sub.registration_number,
-        "documentUrl": sub.document_url,
-        "documentName": sub.document_name,
-        "status": sub.status.value,
+            "id": str(user_doc["_id"]) if user_doc else str(rec_id),
+            "name": user_doc.get("name", "") if user_doc else "",
+            "email": user_doc.get("email", "") if user_doc else "",
+            "phone": user_doc.get("phone", "") if user_doc else "",
+            "organizationName": user_doc.get("organization_name", "") if user_doc else org_name,
+            "organizationType": str(org_type),
+            "verificationStatus": user_doc.get("verification_status") if user_doc else None,
+        } if user_doc else None,
+        "registrationNumber": sub.registration_number or "PENDING_SUBMISSION",
+        "documentUrl": doc_url,
+        "documentName": sub.document_name or (doc_url.split("/")[-1] if doc_url else "Awaiting Document Upload"),
+        "status": sub.status.value if hasattr(sub.status, "value") else str(sub.status),
         "rejectionReason": sub.rejection_reason,
-        "submittedAt": sub.submitted_at.isoformat(),
-        "reviewedAt": sub.reviewed_at.isoformat() if sub.reviewed_at else None,
+        "submittedAt": created_at_str,
+        "reviewedAt": reviewed_at_str,
     }
 
 
-def _review_recipient(db, recipient_id: str, status: VerificationStatus,
+def _review_recipient(db: Database, recipient_id: str, status: VerificationStatus,
                       admin: User, rejection_reason: Optional[str] = None):
     """Shared logic for approve/reject."""
-    try:
-        rid = uuid.UUID(recipient_id)
-    except ValueError:
-        raise ResourceNotFoundError("User")
-
-    recipient = db.query(User).filter(
-        User.id == rid, User.role == UserRole.RECIPIENT, User.is_active == True
-    ).first()
-    if not recipient:
+    user_doc = db["users"].find_one({
+        "$or": [{"_id": str(recipient_id)}, {"id": str(recipient_id)}],
+        "role": UserRole.RECIPIENT.value,
+        "is_active": {"$ne": False}
+    })
+    if not user_doc:
         raise ResourceNotFoundError("Recipient")
 
+    now = datetime.now(timezone.utc)
+
     # Update user verification_status
-    recipient.verification_status = status
-    db.flush()
+    db["users"].update_one(
+        {"_id": user_doc["_id"]},
+        {"$set": {"verification_status": status.value, "updated_at": now}}
+    )
 
     # Update submission record
-    sub = db.query(VerificationSubmission).filter(
-        VerificationSubmission.recipient_id == rid
-    ).first()
-    if sub:
-        sub.status = status
-        sub.reviewed_by_id = admin.id
-        sub.reviewed_at = datetime.now(timezone.utc)
-        sub.rejection_reason = rejection_reason
-        db.flush()
+    sub_doc = db["verification_submissions"].find_one({
+        "$or": [{"user_id": str(recipient_id)}, {"recipient_id": str(recipient_id)}]
+    })
+    if sub_doc:
+        db["verification_submissions"].update_one(
+            {"_id": sub_doc["_id"]},
+            {
+                "$set": {
+                    "status": status.value,
+                    "reviewed_by_id": str(admin.id),
+                    "reviewed_at": now,
+                    "rejection_reason": rejection_reason,
+                    "updated_at": now,
+                }
+            }
+        )
+    else:
+        # Create submission record if not existing
+        sub_id = str(uuid.uuid4())
+        db["verification_submissions"].insert_one({
+            "_id": sub_id,
+            "id": sub_id,
+            "user_id": str(recipient_id),
+            "recipient_id": str(recipient_id),
+            "organization_name": user_doc.get("organization_name") or user_doc.get("name"),
+            "organization_type": user_doc.get("organization_type") or "NGO",
+            "registration_number": "ADMIN_APPROVED",
+            "documents": [],
+            "document_url": None,
+            "document_name": "Direct Admin Review",
+            "status": status.value,
+            "reviewed_by_id": str(admin.id),
+            "reviewed_at": now,
+            "rejection_reason": rejection_reason,
+            "created_at": user_doc.get("created_at") or now,
+            "updated_at": now,
+        })
 
     # Notify recipient
-    n = Notification(
-        user_id=recipient.id,
+    notif = Notification(
+        id=str(uuid.uuid4()),
+        user_id=str(recipient_id),
         type=NotificationType.VERIFICATION_APPROVED if status == VerificationStatus.APPROVED
              else NotificationType.VERIFICATION_REJECTED,
         title="Verification " + ("Approved" if status == VerificationStatus.APPROVED else "Rejected"),
@@ -248,8 +362,10 @@ def _review_recipient(db, recipient_id: str, status: VerificationStatus,
             else f"Your verification was rejected. Reason: {rejection_reason or 'No reason provided'}. Please resubmit."
         ),
         link="/recipient/verification",
+        is_read=False,
+        created_at=now,
     )
-    db.add(n)
+    db["notifications"].insert_one(notif.to_doc())
 
     audit_event = (
         AuditEvent.VERIFICATION_APPROVED
@@ -259,7 +375,7 @@ def _review_recipient(db, recipient_id: str, status: VerificationStatus,
     audit_repository.log(
         db, event=audit_event,
         user_id=admin.id, user_name=admin.name,
-        resource_type="User", resource_id=str(recipient.id),
+        resource_type="User", resource_id=str(recipient_id),
         detail=rejection_reason,
     )
 
@@ -268,11 +384,10 @@ def _review_recipient(db, recipient_id: str, status: VerificationStatus,
 @router.patch("/recipients/{recipient_id}/approve", summary="Approve recipient")
 def approve_recipient(
     recipient_id: str,
-    db: Session = Depends(get_db),
+    db: Database = Depends(get_db),
     current_user: User = Depends(require_admin),
 ):
     _review_recipient(db, recipient_id, VerificationStatus.APPROVED, current_user)
-    db.commit()
     return {"message": "Recipient approved successfully"}
 
 
@@ -281,12 +396,11 @@ def approve_recipient(
 def reject_recipient(
     recipient_id: str,
     payload: dict,
-    db: Session = Depends(get_db),
+    db: Database = Depends(get_db),
     current_user: User = Depends(require_admin),
 ):
     reason = payload.get("reason", "Documents insufficient")
     _review_recipient(db, recipient_id, VerificationStatus.REJECTED, current_user, reason)
-    db.commit()
     return {"message": "Recipient rejected"}
 
 
@@ -296,76 +410,84 @@ def get_reports(
     status: Optional[str] = Query(None),
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
-    db: Session = Depends(get_db),
+    db: Database = Depends(get_db),
     _: User = Depends(require_admin),
 ):
-    query = db.query(Report).options(
-        joinedload(Report.reporter),
-        joinedload(Report.listing),
-        joinedload(Report.resolved_by),
-    )
-
+    query = {}
     if status:
-        try:
-            query = query.filter(Report.status == ReportStatus(status))
-        except ValueError:
-            pass
+        query["status"] = status
 
-    total = query.count()
     offset = (page - 1) * limit
-    reports = query.order_by(Report.created_at.desc()).offset(offset).limit(limit).all()
+    cursor = db["reports"].find(query).sort("created_at", -1).skip(offset).limit(limit)
 
-    def report_to_dict(r):
-        return {
-            "id": str(r.id),
-            "reporterId": str(r.reporter_id),
-            "reporter": {"id": str(r.reporter.id), "name": r.reporter.name} if r.reporter else None,
-            "listingId": str(r.listing_id),
-            "listing": {"id": str(r.listing.id)} if r.listing else None,
-            "reason": r.reason.value,
-            "description": r.description,
-            "status": r.status.value,
-            "resolutionNote": r.resolution_note,
-            "createdAt": r.created_at.isoformat(),
-            "resolvedAt": r.resolved_at.isoformat() if r.resolved_at else None,
-        }
+    results = []
+    for doc in cursor:
+        rep = Report.from_doc(doc)
+        reporter_doc = db["users"].find_one({"$or": [{"_id": str(rep.reporter_id)}, {"id": str(rep.reporter_id)}]}) if rep.reporter_id else None
+        listing_doc = db["listings"].find_one({"$or": [{"_id": str(rep.listing_id)}, {"id": str(rep.listing_id)}]}) if rep.listing_id else None
 
-    return [report_to_dict(r) for r in reports]
+        reason_val = rep.reason.value if hasattr(rep.reason, "value") else str(rep.reason or "")
+        status_val = rep.status.value if hasattr(rep.status, "value") else str(rep.status or "OPEN")
+        created_at_str = rep.created_at.isoformat() if hasattr(rep.created_at, "isoformat") else str(rep.created_at or "")
+        resolved_at_str = rep.resolved_at.isoformat() if hasattr(rep.resolved_at, "isoformat") and rep.resolved_at else (str(rep.resolved_at) if rep.resolved_at else None)
+
+        listing_title = (listing_doc.get("medicine_name") if listing_doc else None) or f"Listing #{str(rep.listing_id)[:8]}"
+        reporter_name = (reporter_doc.get("name") if reporter_doc else None) or "Anonymous"
+
+        results.append({
+            "id": str(rep.id),
+            "listingId": str(rep.listing_id),
+            "listingTitle": listing_title,
+            "reporterId": str(rep.reporter_id),
+            "reporterName": reporter_name,
+            "reporter": {"id": str(reporter_doc["_id"]), "name": reporter_name} if reporter_doc else None,
+            "listing": {"id": str(rep.listing_id), "medicineName": listing_title} if listing_doc else None,
+            "reason": reason_val,
+            "description": rep.description or "",
+            "status": status_val,
+            "resolutionNote": rep.resolution_note,
+            "createdAt": created_at_str,
+            "resolvedAt": resolved_at_str,
+        })
+
+    return results
 
 
 # ── PATCH /admin/reports/{id}/resolve ────────────────────────────────────────
 @router.patch("/reports/{report_id}/resolve", summary="Resolve report")
 def resolve_report(
     report_id: str,
-    payload: dict = None,
-    db: Session = Depends(get_db),
+    payload: Optional[dict] = None,
+    db: Database = Depends(get_db),
     current_user: User = Depends(require_admin),
 ):
     if payload is None:
         payload = {}
 
-    try:
-        rid = uuid.UUID(report_id)
-    except ValueError:
+    rep_doc = db["reports"].find_one({"$or": [{"_id": report_id}, {"id": report_id}]})
+    if not rep_doc:
         raise ResourceNotFoundError("Report")
 
-    report = db.query(Report).filter(Report.id == rid).first()
-    if not report:
-        raise ResourceNotFoundError("Report")
-
-    report.status = ReportStatus.RESOLVED
-    report.resolved_by_id = current_user.id
-    report.resolved_at = datetime.now(timezone.utc)
-    report.resolution_note = payload.get("note")
-    db.flush()
+    now = datetime.now(timezone.utc)
+    db["reports"].update_one(
+        {"_id": rep_doc["_id"]},
+        {
+            "$set": {
+                "status": ReportStatus.RESOLVED.value,
+                "resolved_by_id": str(current_user.id),
+                "resolved_at": now,
+                "resolution_note": payload.get("note"),
+                "updated_at": now,
+            }
+        }
+    )
 
     audit_repository.log(
         db, event=AuditEvent.REPORT_RESOLVED,
         user_id=current_user.id, user_name=current_user.name,
-        resource_type="Report", resource_id=str(report.id),
+        resource_type="Report", resource_id=str(report_id),
     )
 
-    db.commit()
     return {"message": "Report resolved"}
 
 
@@ -375,37 +497,43 @@ def get_audit_logs(
     event: Optional[str] = Query(None),
     page: int = Query(1, ge=1),
     limit: int = Query(50, ge=1, le=200),
-    db: Session = Depends(get_db),
+    db: Database = Depends(get_db),
     _: User = Depends(require_admin),
 ):
-    query = db.query(AuditLog)
-
+    query = {}
     if event:
-        query = query.filter(AuditLog.event == event)
+        query["event"] = event
 
-    total = query.count()
+    total = db["audit_logs"].count_documents(query)
     offset = (page - 1) * limit
-    logs = query.order_by(AuditLog.created_at.desc()).offset(offset).limit(limit).all()
+    cursor = db["audit_logs"].find(query).sort("created_at", -1).skip(offset).limit(limit)
+
+    logs = []
+    for doc in cursor:
+        log = AuditLog.from_doc(doc)
+        c_at = log.created_at.isoformat() if hasattr(log.created_at, "isoformat") else str(log.created_at or "")
+        res_label = f"{log.resource_type or 'Resource'}: {str(log.resource_id)[:8]}" if log.resource_id else (log.resource_type or "System")
+
+        logs.append({
+            "id": str(log.id),
+            "event": log.event.value if hasattr(log.event, "value") else str(log.event),
+            "userId": str(log.user_id) if log.user_id else "",
+            "userName": log.user_name or "System",
+            "resource": res_label,
+            "resourceType": log.resource_type,
+            "resourceId": log.resource_id,
+            "detail": log.detail,
+            "ipAddress": log.ip_address,
+            "timestamp": c_at,
+            "createdAt": c_at,
+        })
 
     return {
-        "data": [
-            {
-                "id": str(l.id),
-                "event": l.event,
-                "userId": str(l.user_id) if l.user_id else None,
-                "userName": l.user_name,
-                "resourceType": l.resource_type,
-                "resourceId": l.resource_id,
-                "detail": l.detail,
-                "ipAddress": l.ip_address,
-                "createdAt": l.created_at.isoformat(),
-            }
-            for l in logs
-        ],
+        "data": logs,
         "total": total,
         "page": page,
         "limit": limit,
-        "totalPages": (total + limit - 1) // limit,
+        "totalPages": (total + limit - 1) // limit if limit else 1,
     }
 
 
@@ -415,37 +543,41 @@ def get_users(
     page: int = Query(1, ge=1),
     limit: int = Query(50, ge=1, le=200),
     role: Optional[str] = Query(None),
-    db: Session = Depends(get_db),
+    db: Database = Depends(get_db),
     _: User = Depends(require_admin),
 ):
-    query = db.query(User).filter(User.is_active == True)
-
+    query = {"is_active": {"$ne": False}}
     if role:
-        try:
-            query = query.filter(User.role == UserRole(role))
-        except ValueError:
-            pass
+        query["role"] = role
 
-    total = query.count()
+    total = db["users"].count_documents(query)
     offset = (page - 1) * limit
-    users = query.order_by(User.created_at.desc()).offset(offset).limit(limit).all()
+    cursor = db["users"].find(query).sort("created_at", -1).skip(offset).limit(limit)
 
-    return [
-        {
+    users = []
+    for doc in cursor:
+        u = User.from_doc(doc)
+        c_at = u.created_at.isoformat() if hasattr(u.created_at, "isoformat") else str(u.created_at or "")
+        role_str = u.role.value if hasattr(u.role, "value") else str(u.role or "")
+        donor_str = u.donor_type.value if hasattr(u.donor_type, "value") else (str(u.donor_type) if u.donor_type else None)
+        org_str = u.organization_type.value if hasattr(u.organization_type, "value") else (str(u.organization_type) if u.organization_type else None)
+        ver_str = u.verification_status.value if hasattr(u.verification_status, "value") else (str(u.verification_status) if u.verification_status else None)
+
+        users.append({
             "id": str(u.id),
             "name": u.name,
             "email": u.email,
             "phone": u.phone,
-            "role": u.role.value,
-            "donorType": u.donor_type.value if u.donor_type else None,
+            "role": role_str,
+            "donorType": donor_str,
             "organizationName": u.organization_name,
-            "organizationType": u.organization_type.value if u.organization_type else None,
-            "verificationStatus": u.verification_status.value if u.verification_status else None,
+            "organizationType": org_str,
+            "verificationStatus": ver_str,
             "isActive": u.is_active,
-            "createdAt": u.created_at.isoformat(),
-        }
-        for u in users
-    ]
+            "createdAt": c_at,
+        })
+
+    return users
 
 
 # ── GET /admin/listings ───────────────────────────────────────────────────────
@@ -454,68 +586,63 @@ def get_all_listings(
     status: Optional[str] = Query(None),
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
-    db: Session = Depends(get_db),
+    db: Database = Depends(get_db),
     _: User = Depends(require_admin),
 ):
-    from app.routers.listings import listing_to_dict
-    query = db.query(Listing).options(
-        joinedload(Listing.medicine),
-        joinedload(Listing.donor),
-    )
-
+    query = {}
     if status:
-        try:
-            query = query.filter(Listing.status == ListingStatus(status))
-        except ValueError:
-            pass
+        query["status"] = status
 
-    total = query.count()
+    total = db["listings"].count_documents(query)
     offset = (page - 1) * limit
-    listings = query.order_by(Listing.created_at.desc()).offset(offset).limit(limit).all()
+    cursor = db["listings"].find(query).sort("created_at", -1).skip(offset).limit(limit)
+
+    listings = []
+    for doc in cursor:
+        l = Listing.from_doc(doc)
+        listings.append(listing_to_dict(l, db=db))
 
     return {
-        "data": [listing_to_dict(l) for l in listings],
+        "data": listings,
         "total": total,
         "page": page,
         "limit": limit,
-        "totalPages": (total + limit - 1) // limit,
+        "totalPages": (total + limit - 1) // limit if limit else 1,
     }
 
 
 # ── GET /admin/analytics ──────────────────────────────────────────────────────
 @router.get("/analytics", summary="Impact analytics")
 def get_analytics(
-    db: Session = Depends(get_db),
+    db: Database = Depends(get_db),
     _: User = Depends(require_admin),
 ):
-    """
-    GET /api/v1/admin/analytics
+    total_users = db["users"].count_documents({"is_active": {"$ne": False}})
+    total_listings = db["listings"].count_documents({})
+    total_claims = db["claims"].count_documents({})
+    completed_claims = db["claims"].count_documents({"status": ClaimStatus.COMPLETED.value})
 
-    Returns high-level impact metrics for the platform analytics page.
-    """
-    total_users = db.query(func.count(User.id)).filter(User.is_active == True).scalar() or 0
-    total_listings = db.query(func.count(Listing.id)).scalar() or 0
-    total_claims = db.query(func.count(Claim.id)).scalar() or 0
-    completed_claims = db.query(func.count(Claim.id)).filter(
-        Claim.status == ClaimStatus.COMPLETED
-    ).scalar() or 0
-    total_units_donated = db.query(
-        func.coalesce(func.sum(Claim.requested_quantity), 0)
-    ).filter(Claim.status == ClaimStatus.COMPLETED).scalar() or 0
+    pipeline_sum = [
+        {"$match": {"status": ClaimStatus.COMPLETED.value}},
+        {"$group": {"_id": None, "total": {"$sum": "$requested_quantity"}}}
+    ]
+    sum_res = list(db["claims"].aggregate(pipeline_sum))
+    total_units_donated = sum_res[0]["total"] if sum_res else 0
 
     completion_rate = round((completed_claims / total_claims * 100) if total_claims > 0 else 0, 1)
 
-    # By category
-    from app.models.medicine import Medicine
-    category_stats = (
-        db.query(Medicine.category, func.count(Listing.id))
-        .join(Listing, Listing.medicine_id == Medicine.id)
-        .filter(Listing.status == ListingStatus.COMPLETED)
-        .group_by(Medicine.category)
-        .order_by(func.count(Listing.id).desc())
-        .limit(10)
-        .all()
-    )
+    # Group completed listings by category
+    pipeline_cat = [
+        {"$match": {"status": ListingStatus.COMPLETED.value}},
+        {"$group": {"_id": "$category", "count": {"$sum": 1}}},
+        {"$sort": {"count": -1}},
+        {"$limit": 10}
+    ]
+    cat_res = list(db["listings"].aggregate(pipeline_cat))
+    top_categories = [
+        {"category": item["_id"] or "General", "count": item["count"]}
+        for item in cat_res if item.get("_id")
+    ]
 
     return {
         "totalUsers": total_users,
@@ -524,8 +651,5 @@ def get_analytics(
         "completedDonations": completed_claims,
         "totalUnitsDonated": int(total_units_donated),
         "completionRate": completion_rate,
-        "topCategories": [
-            {"category": cat, "count": count}
-            for cat, count in category_stats
-        ],
+        "topCategories": top_categories,
     }

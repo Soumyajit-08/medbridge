@@ -58,7 +58,6 @@ import { ReportsPage } from '@/pages/admin/ReportsPage';
 import { UsersPage } from '@/pages/admin/UsersPage';
 import { ListingsPage as AdminListingsPage } from '@/pages/admin/ListingsPage';
 import { AuditLogsPage } from '@/pages/admin/AuditLogsPage';
-import { ImpactAnalyticsPage } from '@/pages/admin/ImpactAnalyticsPage';
 
 // Error pages
 import { UnauthorizedPage } from '@/pages/errors/UnauthorizedPage';
@@ -121,7 +120,6 @@ function AppRoutes() {
             <Route path="users" element={<UsersPage />} />
             <Route path="listings" element={<AdminListingsPage />} />
             <Route path="audit-logs" element={<AuditLogsPage />} />
-            <Route path="analytics" element={<ImpactAnalyticsPage />} />
           </Route>
         </Route>
 

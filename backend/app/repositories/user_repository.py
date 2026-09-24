@@ -1,73 +1,45 @@
 """
 app/repositories/user_repository.py
 ──────────────────────────────────────────────────────────────────────────────
-User repository — all database queries for the users table.
-
-WHY A REPOSITORY LAYER?
-  The repository is the ONLY place that talks to the database.
-  Services call repository methods — they don't write SQL themselves.
-
-  Benefits:
-  - If we switch databases (PostgreSQL → MySQL), only this layer changes.
-  - All queries are in one place — easy to find and optimize.
-  - Services are easier to unit test (mock the repository).
-
-WHAT BELONGS HERE:
-  - SELECT queries (get_by_id, get_by_email)
-  - INSERT operations (create)
-  - UPDATE operations (update_password)
-  - DELETE operations (soft delete)
-  - Complex JOINs specific to users
-
-WHAT DOES NOT BELONG HERE:
-  - Business logic ("is this user allowed to do X?") → goes in services
-  - Password hashing → goes in auth/password.py
-  - JWT creation → goes in auth/jwt.py
-
-USAGE IN SERVICES:
-  user = user_repo.get_by_email(db, "test@example.com")
-  if not user:
-      raise ResourceNotFoundError("User")
+User repository — MongoDB operations for `users` collection.
 """
 
-import uuid
-from typing import Optional
-from sqlalchemy.orm import Session
-from sqlalchemy import func
-
+from typing import Optional, List, Tuple
+from pymongo.database import Database
 from app.models.user import User
 from app.utils.enums import UserRole, VerificationStatus
+from app.db.mongodb import get_users_collection
 
 
 class UserRepository:
     """
-    All database operations for the User model.
-    Methods are simple, focused, and don't contain business logic.
+    MongoDB operations for the User model.
     """
 
-    def get_by_id(self, db: Session, user_id: uuid.UUID) -> Optional[User]:
-        """Fetch a user by their UUID. Returns None if not found."""
-        return db.query(User).filter(User.id == user_id, User.is_active == True).first()
+    def get_by_id(self, db: Optional[Database], user_id: str) -> Optional[User]:
+        col = db["users"] if db is not None else get_users_collection()
+        uid = str(user_id)
+        doc = col.find_one({"$or": [{"_id": uid}, {"id": uid}], "is_active": True})
+        return User.from_doc(doc) if doc else None
 
-    def get_by_email(self, db: Session, email: str) -> Optional[User]:
-        """
-        Fetch a user by email (case-insensitive).
-        Used during login to find the user before verifying password.
-        """
-        return db.query(User).filter(
-            func.lower(User.email) == email.lower().strip(),
-            User.is_active == True,
-        ).first()
+    def get_by_email(self, db: Optional[Database], email: str) -> Optional[User]:
+        col = db["users"] if db is not None else get_users_collection()
+        doc = col.find_one({
+            "email": {"$regex": f"^{email.strip()}$", "$options": "i"},
+            "is_active": True,
+        })
+        return User.from_doc(doc) if doc else None
 
-    def email_exists(self, db: Session, email: str) -> bool:
-        """Check if an email is already registered. Used during registration."""
-        return db.query(User).filter(
-            func.lower(User.email) == email.lower().strip()
-        ).count() > 0
+    def email_exists(self, db: Optional[Database], email: str) -> bool:
+        col = db["users"] if db is not None else get_users_collection()
+        count = col.count_documents({
+            "email": {"$regex": f"^{email.strip()}$", "$options": "i"}
+        })
+        return count > 0
 
     def create(
         self,
-        db: Session,
+        db: Optional[Database],
         *,
         name: str,
         email: str,
@@ -78,18 +50,9 @@ class UserRepository:
         organization_name: Optional[str] = None,
         organization_type=None,
     ) -> User:
-        """
-        Create a new user and save to the database.
-
-        We use keyword-only arguments (after *) to prevent mistakes
-        from positional argument order.
-
-        The verification_status is auto-set:
-          - RECIPIENT → PENDING (must be approved before claiming)
-          - DONOR → None (donors don't need verification)
-        """
+        col = db["users"] if db is not None else get_users_collection()
         verification_status = None
-        if role == UserRole.RECIPIENT:
+        if role == UserRole.RECIPIENT or role == "RECIPIENT":
             verification_status = VerificationStatus.PENDING
 
         user = User(
@@ -104,44 +67,45 @@ class UserRepository:
             verification_status=verification_status,
         )
 
-        db.add(user)
-        db.flush()   # Write to DB transaction (but don't commit yet)
-                     # This gives us user.id before committing
+        col.insert_one(user.to_doc())
         return user
 
     def update_verification_status(
         self,
-        db: Session,
-        user_id: uuid.UUID,
+        db: Optional[Database],
+        user_id: str,
         status: VerificationStatus,
     ) -> Optional[User]:
-        """Update a recipient's verification status (admin action)."""
-        user = self.get_by_id(db, user_id)
-        if user:
-            user.verification_status = status
-            db.flush()
-        return user
+        col = db["users"] if db is not None else get_users_collection()
+        uid = str(user_id)
+        status_val = status.value if hasattr(status, "value") else str(status)
+        col.update_one(
+            {"$or": [{"_id": uid}, {"id": uid}]},
+            {"$set": {"verification_status": status_val}}
+        )
+        return self.get_by_id(db, uid)
 
-    def deactivate(self, db: Session, user_id: uuid.UUID) -> Optional[User]:
-        """Soft-delete a user (set is_active = False)."""
-        user = self.get_by_id(db, user_id)
-        if user:
-            user.is_active = False
-            db.flush()
-        return user
+    def deactivate(self, db: Optional[Database], user_id: str) -> Optional[User]:
+        col = db["users"] if db is not None else get_users_collection()
+        uid = str(user_id)
+        col.update_one(
+            {"$or": [{"_id": uid}, {"id": uid}]},
+            {"$set": {"is_active": False}}
+        )
+        return self.get_by_id(db, uid)
 
     def get_all(
         self,
-        db: Session,
+        db: Optional[Database],
         offset: int = 0,
         limit: int = 50,
-    ) -> tuple[list[User], int]:
-        """Get all active users with total count (for admin panel)."""
-        query = db.query(User).filter(User.is_active == True)
-        total = query.count()
-        users = query.order_by(User.created_at.desc()).offset(offset).limit(limit).all()
+    ) -> Tuple[List[User], int]:
+        col = db["users"] if db is not None else get_users_collection()
+        query = {"is_active": True}
+        total = col.count_documents(query)
+        cursor = col.find(query).sort("created_at", -1).skip(offset).limit(limit)
+        users = [User.from_doc(doc) for doc in cursor]
         return users, total
 
 
-# Singleton instance — import and use this directly
 user_repository = UserRepository()

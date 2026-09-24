@@ -1,6 +1,5 @@
 import { Link } from 'react-router-dom';
 import {
-  BarChart3,
   ClipboardList,
   FileCheck,
   Flag,
@@ -53,12 +52,11 @@ export function AdminDashboardPage() {
           />
         </StatsGrid>
 
-        <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {[
             { label: 'Verification queue', href: ROUTES.admin.verifications, icon: FileCheck },
             { label: 'Reports', href: ROUTES.admin.reports, icon: Flag },
             { label: 'Users', href: ROUTES.admin.users, icon: Users },
-            { label: 'Impact analytics', href: ROUTES.admin.analytics, icon: BarChart3 },
           ].map(({ label, href, icon: Icon }) => (
             <Link
               key={href}

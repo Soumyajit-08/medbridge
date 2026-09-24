@@ -1,26 +1,18 @@
 """
 app/repositories/refresh_token_repository.py
 ──────────────────────────────────────────────────────────────────────────────
-Repository for managing refresh tokens in the database.
+Repository for managing refresh tokens in MongoDB.
 """
 
-import uuid
 import hashlib
 from datetime import datetime
 from typing import Optional
-from sqlalchemy.orm import Session
-
+from pymongo.database import Database
 from app.models.refresh_token import RefreshToken
+from app.db.mongodb import get_refresh_tokens_collection
 
 
 def _hash_token(token: str) -> str:
-    """
-    Hash the raw JWT refresh token with SHA-256 before storing.
-    We never store the raw token — only the hash.
-
-    If the DB is compromised, the attacker gets hashes,
-    not usable tokens.
-    """
     return hashlib.sha256(token.encode()).hexdigest()
 
 
@@ -28,58 +20,47 @@ class RefreshTokenRepository:
 
     def create(
         self,
-        db: Session,
+        db: Optional[Database],
         *,
-        user_id: uuid.UUID,
+        user_id: str,
         token: str,
         expires_at: datetime,
     ) -> RefreshToken:
-        """Store a hashed refresh token in the database."""
+        col = db["refresh_tokens"] if db is not None else get_refresh_tokens_collection()
         refresh_token = RefreshToken(
-            user_id=user_id,
+            user_id=str(user_id),
             token_hash=_hash_token(token),
             expires_at=expires_at,
             is_revoked=False,
         )
-        db.add(refresh_token)
-        db.flush()
+        col.insert_one(refresh_token.to_doc())
         return refresh_token
 
-    def get_by_token(self, db: Session, token: str) -> Optional[RefreshToken]:
-        """
-        Find a stored refresh token by its raw value.
-        We hash the incoming token and look it up by hash.
-        """
+    def get_by_token(self, db: Optional[Database], token: str) -> Optional[RefreshToken]:
+        col = db["refresh_tokens"] if db is not None else get_refresh_tokens_collection()
         token_hash = _hash_token(token)
-        return db.query(RefreshToken).filter(
-            RefreshToken.token_hash == token_hash,
-            RefreshToken.is_revoked == False,
-        ).first()
+        doc = col.find_one({
+            "token_hash": token_hash,
+            "is_revoked": False,
+        })
+        return RefreshToken.from_doc(doc) if doc else None
 
-    def revoke(self, db: Session, token: str) -> bool:
-        """
-        Revoke a specific refresh token (called on logout or rotation).
-        Returns True if the token was found and revoked.
-        """
-        stored = self.get_by_token(db, token)
-        if stored:
-            stored.is_revoked = True
-            db.flush()
-            return True
-        return False
+    def revoke(self, db: Optional[Database], token: str) -> bool:
+        col = db["refresh_tokens"] if db is not None else get_refresh_tokens_collection()
+        token_hash = _hash_token(token)
+        res = col.update_one(
+            {"token_hash": token_hash},
+            {"$set": {"is_revoked": True}}
+        )
+        return res.modified_count > 0
 
-    def revoke_all_for_user(self, db: Session, user_id: uuid.UUID) -> int:
-        """
-        Revoke ALL refresh tokens for a user.
-        Used when: password change, account compromise, admin ban.
-        Returns the number of tokens revoked.
-        """
-        count = db.query(RefreshToken).filter(
-            RefreshToken.user_id == user_id,
-            RefreshToken.is_revoked == False,
-        ).update({"is_revoked": True})
-        db.flush()
-        return count
+    def revoke_all_for_user(self, db: Optional[Database], user_id: str) -> int:
+        col = db["refresh_tokens"] if db is not None else get_refresh_tokens_collection()
+        res = col.update_many(
+            {"user_id": str(user_id), "is_revoked": False},
+            {"$set": {"is_revoked": True}}
+        )
+        return res.modified_count
 
 
 refresh_token_repository = RefreshTokenRepository()

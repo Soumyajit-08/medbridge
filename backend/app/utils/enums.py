@@ -116,6 +116,16 @@ class UrgencyLevel(str, Enum):
     EXPIRED = "EXPIRED"
 
 
+# ── Storage Condition ─────────────────────────────────────────────────────────
+
+class StorageCondition(str, Enum):
+    ROOM_TEMPERATURE = "ROOM_TEMPERATURE"
+    REFRIGERATED = "REFRIGERATED"
+    COLD_CHAIN = "COLD_CHAIN"
+    FROZEN = "FROZEN"
+    PROTECT_FROM_LIGHT = "PROTECT_FROM_LIGHT"
+
+
 # ── Packaging Condition ───────────────────────────────────────────────────────
 
 class PackagingCondition(str, Enum):
@@ -125,6 +135,8 @@ class PackagingCondition(str, Enum):
     DAMAGED       = any visible damage — ineligible by default.
     """
     SEALED_INTACT = "SEALED_INTACT"
+    SEALED = "SEALED"
+    OPENED_BLISTER = "OPENED_BLISTER"
     DAMAGED = "DAMAGED"
 
 
@@ -147,11 +159,20 @@ class ClaimStatus(str, Enum):
 # ── Need Status ───────────────────────────────────────────────────────────────
 
 class NeedStatus(str, Enum):
+    OPEN = "OPEN"
     ACTIVE = "ACTIVE"
     MATCHED = "MATCHED"
     FULFILLED = "FULFILLED"
     EXPIRED = "EXPIRED"
     CANCELLED = "CANCELLED"
+
+
+class NeedUrgency(str, Enum):
+    LOW = "LOW"
+    MEDIUM = "MEDIUM"
+    HIGH = "HIGH"
+    CRITICAL = "CRITICAL"
+    URGENT = "URGENT"
 
 
 # ── Notification Types ────────────────────────────────────────────────────────

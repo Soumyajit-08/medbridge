@@ -24,6 +24,7 @@ export interface AuthTokens {
 export interface LoginCredentials {
   email: string;
   password: string;
+  portal?: 'USER' | 'ADMIN';
 }
 
 export interface RegisterDonorData {

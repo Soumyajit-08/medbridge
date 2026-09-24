@@ -66,7 +66,7 @@ class AuthUserResponse(BaseModel):
     avatar_url: Optional[str] = None
 
     model_config = {
-        "from_attributes": True,  # allows creating from SQLAlchemy model (model_validate(user))
+        "from_attributes": True,  # allows creating from model / dict (model_validate(user))
         # Map snake_case DB field names to camelCase for the frontend
         "populate_by_name": True,
     }
@@ -75,7 +75,7 @@ class AuthUserResponse(BaseModel):
     # We use alias_generator or explicit aliases.
     @classmethod
     def from_user(cls, user) -> "AuthUserResponse":
-        """Build an AuthUserResponse from a User SQLAlchemy model."""
+        """Build an AuthUserResponse from a User model or document."""
         return cls(
             id=str(user.id),
             name=user.name,
@@ -111,15 +111,10 @@ class AuthUserResponse(BaseModel):
 class LoginRequest(BaseModel):
     """
     POST /api/v1/auth/login body.
-
-    Frontend sends:
-    {
-      "email": "user@example.com",
-      "password": "MyPassword123"
-    }
     """
-    email: EmailStr               # EmailStr validates it's a real email format
+    email: EmailStr
     password: str = Field(min_length=1)
+    portal: Optional[str] = None  # "ADMIN" | "USER"
 
 
 class RegisterDonorRequest(BaseModel):

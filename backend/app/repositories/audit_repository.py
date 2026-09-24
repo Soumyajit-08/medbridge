@@ -1,74 +1,67 @@
 """
 app/repositories/audit_repository.py
 ──────────────────────────────────────────────────────────────────────────────
-Audit log repository — write-only operations for audit logs.
-
-DESIGN PRINCIPLE: Write-only
-  Audit logs should be easy to write (append only) and hard to delete.
-  We provide only: create() and query methods.
-  No update() or delete() methods.
+Audit log repository — MongoDB operations for `audit_logs` collection.
 """
 
-import uuid
-from typing import Optional
-from sqlalchemy.orm import Session
-
+from typing import Optional, List, Tuple
+from pymongo.database import Database
 from app.models.audit_log import AuditLog
 from app.utils.enums import AuditEvent
+from app.db.mongodb import get_audit_logs_collection
 
 
 class AuditRepository:
 
     def log(
         self,
-        db: Session,
+        db: Optional[Database],
         *,
         event: AuditEvent,
-        user_id: Optional[uuid.UUID] = None,
+        user_id: Optional[str] = None,
         user_name: Optional[str] = None,
+        user_email: Optional[str] = None,
+        role: Optional[str] = None,
         resource_type: Optional[str] = None,
         resource_id: Optional[str] = None,
         detail: Optional[str] = None,
         ip_address: Optional[str] = None,
+        user_agent: Optional[str] = None,
+        details: Optional[dict] = None,
     ) -> AuditLog:
-        """
-        Create a new audit log entry.
-
-        Usage:
-          audit_repo.log(
-              db,
-              event=AuditEvent.USER_LOGIN,
-              user_id=user.id,
-              user_name=user.name,
-              ip_address=request.client.host,
-          )
-        """
+        col = db["audit_logs"] if db is not None else get_audit_logs_collection()
+        ev_val = event.value if hasattr(event, "value") else str(event)
         log = AuditLog(
-            event=event.value,
-            user_id=user_id,
+            event_type=ev_val,
+            event=ev_val,
+            user_id=str(user_id) if user_id else None,
             user_name=user_name,
+            user_email=user_email,
+            role=role,
             resource_type=resource_type,
             resource_id=str(resource_id) if resource_id else None,
             detail=detail,
             ip_address=ip_address,
+            user_agent=user_agent,
+            details=details or ({"detail": detail} if detail else {}),
         )
-        db.add(log)
-        db.flush()
+        col.insert_one(log.to_doc())
         return log
 
     def get_all(
         self,
-        db: Session,
+        db: Optional[Database],
         event_filter: Optional[str] = None,
         offset: int = 0,
         limit: int = 50,
-    ) -> tuple[list[AuditLog], int]:
-        """Fetch audit logs for the admin panel."""
-        query = db.query(AuditLog)
+    ) -> Tuple[List[AuditLog], int]:
+        col = db["audit_logs"] if db is not None else get_audit_logs_collection()
+        query = {}
         if event_filter:
-            query = query.filter(AuditLog.event == event_filter)
-        total = query.count()
-        logs = query.order_by(AuditLog.created_at.desc()).offset(offset).limit(limit).all()
+            query = {"$or": [{"event": event_filter}, {"event_type": event_filter}]}
+        total = col.count_documents(query)
+        cursor = col.find(query).sort("created_at", -1).skip(offset).limit(limit)
+        logs = [AuditLog.from_doc(doc) for doc in cursor]
         return logs, total
 
 

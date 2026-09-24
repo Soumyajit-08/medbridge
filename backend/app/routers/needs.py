@@ -1,21 +1,16 @@
 """
 app/routers/needs.py
 ──────────────────────────────────────────────────────────────────────────────
-Needs endpoints — verified recipients declare medicine needs.
-
-GET    /needs              → Get my needs (recipient) or all needs (admin)
-GET    /needs/{id}         → Get need detail
-POST   /needs              → Recipient creates a need
-PATCH  /needs/{id}         → Recipient updates a need
-DELETE /needs/{id}         → Recipient cancels a need
+Needs endpoints for MongoDB.
 """
 
 import uuid
+import re
 from datetime import datetime, timezone, timedelta
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy.orm import Session, joinedload
+from pymongo.database import Database
 
 from app.db.session import get_db
 from app.core.dependencies import get_current_user
@@ -29,274 +24,205 @@ from app.repositories.audit_repository import audit_repository
 router = APIRouter(prefix="/needs", tags=["Needs"])
 
 
-def need_to_dict(need: Need) -> dict:
+def need_to_dict(need: Need, db: Optional[Database] = None) -> dict:
+    medicine = need.medicine or {}
+    recipient = need.recipient or {}
+
+    if (not medicine or not recipient) and db is not None:
+        if not medicine and need.medicine_id:
+            doc = db["medicines"].find_one({"$or": [{"_id": str(need.medicine_id)}, {"id": str(need.medicine_id)}]})
+            if doc:
+                medicine = doc
+        if not recipient and need.recipient_id:
+            doc = db["users"].find_one({"$or": [{"_id": str(need.recipient_id)}, {"id": str(need.recipient_id)}]})
+            if doc:
+                recipient = doc
+
+    status_val = need.status if isinstance(need.status, str) else getattr(need.status, "value", str(need.status))
+    urgency_val = need.urgency if isinstance(need.urgency, str) else getattr(need.urgency, "value", str(need.urgency))
+
+    created_at_val = need.created_at.isoformat() if hasattr(need.created_at, "isoformat") else str(need.created_at or "")
+    updated_at_val = need.updated_at.isoformat() if hasattr(need.updated_at, "isoformat") else str(need.updated_at or "")
+    expires_at_val = need.expires_at.isoformat() if hasattr(need.expires_at, "isoformat") and need.expires_at else (str(need.expires_at) if need.expires_at else None)
+
     result = {
         "id": str(need.id),
         "recipientId": str(need.recipient_id),
-        "medicineId": str(need.medicine_id),
-        "quantityNeeded": need.quantity_needed,
-        "urgency": need.urgency.value,
-        "city": need.city,
-        "state": need.state,
+        "medicineId": str(need.medicine_id or ""),
+        "quantityNeeded": need.quantity_needed or need.quantity or 1,
+        "urgency": urgency_val,
+        "city": need.city or "",
+        "state": need.state or "",
         "location": {
             "city": need.city or "",
             "state": need.state or "",
         },
-        "description": need.description,
-        "matchCount": need.match_count,
-        "status": need.status.value,
-        "expiresAt": need.expires_at.isoformat(),
-        "createdAt": need.created_at.isoformat(),
-        "updatedAt": need.updated_at.isoformat(),
+        "description": need.description or need.reason or "",
+        "matchCount": need.match_count or 0,
+        "status": status_val,
+        "expiresAt": expires_at_val,
+        "createdAt": created_at_val,
+        "updatedAt": updated_at_val,
     }
-    if hasattr(need, 'medicine') and need.medicine:
+
+    if medicine:
         result["medicine"] = {
-            "id": str(need.medicine.id),
-            "name": need.medicine.name,
-            "genericName": need.medicine.generic_name,
-            "strength": need.medicine.strength,
-            "category": need.medicine.category,
+            "id": str(medicine.get("_id") or medicine.get("id", "")),
+            "name": medicine.get("name", need.medicine_name or "Medicine"),
+            "genericName": medicine.get("generic_name", need.generic_name or ""),
+            "strength": medicine.get("strength", ""),
+            "category": medicine.get("category", need.category or "General"),
         }
-    if hasattr(need, 'recipient') and need.recipient:
+    elif need.medicine_name:
+        result["medicine"] = {
+            "id": str(need.medicine_id or ""),
+            "name": need.medicine_name,
+            "genericName": need.generic_name or "",
+            "strength": "",
+            "category": need.category or "General",
+        }
+
+    if recipient:
         result["recipient"] = {
-            "id": str(need.recipient.id),
-            "name": need.recipient.name,
-            "organizationName": need.recipient.organization_name,
+            "id": str(recipient.get("_id") or recipient.get("id")),
+            "name": recipient.get("name", ""),
+            "organizationName": recipient.get("organization_name", ""),
         }
+
     return result
 
 
-# ── GET /needs ────────────────────────────────────────────────────────────────
 @router.get("", summary="Get needs")
 def get_needs(
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
     status: Optional[str] = Query(None),
-    db: Session = Depends(get_db),
+    db: Database = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    query = db.query(Need).options(
-        joinedload(Need.medicine),
-        joinedload(Need.recipient),
-    )
+    query = {}
+    role_val = current_user.role if isinstance(current_user.role, str) else current_user.role.value
 
-    if current_user.role == UserRole.RECIPIENT:
-        query = query.filter(Need.recipient_id == current_user.id)
-    elif current_user.role == UserRole.DONOR:
-        # Donors see all ACTIVE needs (for matching context)
-        query = query.filter(Need.status == NeedStatus.ACTIVE)
-    # ADMIN: sees all
+    if role_val == "RECIPIENT":
+        query["recipient_id"] = str(current_user.id)
+    elif role_val == "DONOR":
+        query["status"] = {"$in": ["ACTIVE", "OPEN"]}
 
     if status:
-        try:
-            query = query.filter(Need.status == NeedStatus(status))
-        except ValueError:
-            pass
+        query["status"] = status
 
-    total = query.count()
+    total = db["needs"].count_documents(query)
     offset = (page - 1) * limit
-    needs = query.order_by(Need.created_at.desc()).offset(offset).limit(limit).all()
+    cursor = db["needs"].find(query).sort("created_at", -1).skip(offset).limit(limit)
+    needs = [Need.from_doc(doc) for doc in cursor]
 
     return {
-        "data": [need_to_dict(n) for n in needs],
+        "data": [need_to_dict(n, db) for n in needs],
         "total": total,
         "page": page,
         "limit": limit,
-        "totalPages": (total + limit - 1) // limit,
+        "totalPages": (total + limit - 1) // limit if total > 0 else 1,
     }
 
 
-# ── GET /needs/{id} ───────────────────────────────────────────────────────────
 @router.get("/{need_id}", summary="Get need detail")
 def get_need(
     need_id: str,
-    db: Session = Depends(get_db),
+    db: Database = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    try:
-        nid = uuid.UUID(need_id)
-    except ValueError:
+    nid = str(need_id)
+    doc = db["needs"].find_one({"$or": [{"_id": nid}, {"id": nid}]})
+    if not doc:
         raise ResourceNotFoundError("Need")
 
-    need = db.query(Need).options(
-        joinedload(Need.medicine),
-        joinedload(Need.recipient),
-    ).filter(Need.id == nid).first()
-
-    if not need:
-        raise ResourceNotFoundError("Need")
-
-    # Access: recipient sees their own; admin/donor sees all
-    if current_user.role == UserRole.RECIPIENT and str(need.recipient_id) != str(current_user.id):
-        raise AuthorizationError("Not your need")
-
-    return need_to_dict(need)
+    need = Need.from_doc(doc)
+    return need_to_dict(need, db)
 
 
-# ── POST /needs ───────────────────────────────────────────────────────────────
 @router.post("", summary="Create need (recipient)")
 def create_need(
     payload: dict,
-    db: Session = Depends(get_db),
+    db: Database = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    if current_user.role != UserRole.RECIPIENT:
-        raise AuthorizationError("Only recipients can create needs")
+    role_val = current_user.role if isinstance(current_user.role, str) else current_user.role.value
+    if role_val != "RECIPIENT":
+        raise AuthorizationError("Only recipients can post needs")
 
-    if current_user.verification_status != VerificationStatus.APPROVED:
-        raise BusinessRuleError("Your account must be verified before creating needs")
+    medicine_id_str = payload.get("medicineId") or payload.get("medicine_id")
+    medicine_name = payload.get("medicineName") or payload.get("medicine_name") or ""
+    quantity = int(payload.get("quantityNeeded") or payload.get("quantity_needed") or 1)
+    urgency_str = payload.get("urgency", "MEDIUM")
 
-    medicine_id_str = str(payload.get("medicineId", "")).strip()
-    if not medicine_id_str:
-        raise BusinessRuleError("Medicine is required")
+    med_doc = None
+    if medicine_id_str:
+        med_doc = db["medicines"].find_one({"$or": [{"_id": str(medicine_id_str)}, {"id": str(medicine_id_str)}]})
+    elif medicine_name:
+        med_doc = db["medicines"].find_one({"name": {"$regex": f"^{re.escape(medicine_name.strip())}$", "$options": "i"}})
 
-    medicine = None
-    try:
-        mid = uuid.UUID(medicine_id_str)
-        medicine = db.query(Medicine).filter(Medicine.id == mid, Medicine.is_active == True).first()
-    except ValueError:
-        mid = None
+    if med_doc:
+        med_id = str(med_doc.get("id") or med_doc.get("_id"))
+        medicine_name = med_doc.get("name", medicine_name)
+    else:
+        med_id = str(uuid.uuid4())
 
-    if not medicine:
-        medicine = db.query(Medicine).filter(
-            func.lower(Medicine.name) == medicine_id_str.lower(),
-            Medicine.is_active == True
-        ).first()
+    need_id = str(uuid.uuid4())
+    now = datetime.now(timezone.utc)
+    expires_at = now + timedelta(days=30)
 
-    if not medicine:
-        medicine = db.query(Medicine).filter(
-            Medicine.name.ilike(f"%{medicine_id_str}%"),
-            Medicine.is_active == True
-        ).first()
-
-    if not medicine:
-        medicine = Medicine(
-            name=medicine_id_str,
-            generic_name=medicine_id_str,
-            category="General",
-            dosage_form="Tablet",
-            strength="Standard",
-            manufacturer="Unspecified",
-        )
-        db.add(medicine)
-        db.flush()
-
-    mid = medicine.id
-
-    urgency_str = payload.get("urgency", "LOW")
-    try:
-        urgency = UrgencyLevel(urgency_str)
-    except ValueError:
-        urgency = UrgencyLevel.LOW
-
-    # Set expiry (default 30 days from now)
-    expires_at = datetime.now(timezone.utc) + timedelta(days=30)
+    recipient_doc = {
+        "id": str(current_user.id),
+        "name": current_user.name,
+        "organization_name": current_user.organization_name,
+    }
 
     need = Need(
-        recipient_id=current_user.id,
-        medicine_id=mid,
-        quantity_needed=payload.get("quantityNeeded", 1),
-        urgency=urgency,
+        id=need_id,
+        _id=need_id,
+        recipient_id=str(current_user.id),
+        medicine_id=med_id,
+        medicine_name=medicine_name,
+        generic_name=payload.get("genericName") or (med_doc.get("generic_name") if med_doc else None),
+        category=payload.get("category") or (med_doc.get("category") if med_doc else "General"),
+        quantity_needed=quantity,
+        urgency=urgency_str,
+        description=payload.get("description") or payload.get("reason"),
         city=payload.get("city", ""),
         state=payload.get("state", ""),
-        description=payload.get("description"),
+        status="ACTIVE",
         expires_at=expires_at,
-        status=NeedStatus.ACTIVE,
+        medicine=med_doc,
+        recipient=recipient_doc,
     )
-    db.add(need)
-    db.flush()
+
+    db["needs"].insert_one(need.to_doc())
 
     audit_repository.log(
-        db, event=AuditEvent.NEED_CREATED,
-        user_id=current_user.id, user_name=current_user.name,
-        resource_type="Need", resource_id=str(need.id),
+        db,
+        event=AuditEvent.NEED_CREATED,
+        user_id=str(current_user.id),
+        user_name=current_user.name,
+        resource_type="Need",
+        resource_id=need_id,
     )
 
-    db.commit()
-
-    need = db.query(Need).options(
-        joinedload(Need.medicine),
-        joinedload(Need.recipient),
-    ).filter(Need.id == need.id).first()
-
-    return need_to_dict(need)
+    return need_to_dict(need, db)
 
 
-# ── PATCH /needs/{id} ────────────────────────────────────────────────────────
-@router.patch("/{need_id}", summary="Update need (recipient)")
-def update_need(
-    need_id: str,
-    payload: dict,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    try:
-        nid = uuid.UUID(need_id)
-    except ValueError:
-        raise ResourceNotFoundError("Need")
-
-    need = db.query(Need).filter(Need.id == nid).first()
-    if not need:
-        raise ResourceNotFoundError("Need")
-
-    if str(need.recipient_id) != str(current_user.id):
-        raise AuthorizationError("Not your need")
-
-    if need.status != NeedStatus.ACTIVE:
-        raise BusinessRuleError("Can only update ACTIVE needs")
-
-    if "quantityNeeded" in payload:
-        need.quantity_needed = payload["quantityNeeded"]
-    if "urgency" in payload:
-        try:
-            need.urgency = UrgencyLevel(payload["urgency"])
-        except ValueError:
-            pass
-    if "description" in payload:
-        need.description = payload["description"]
-    if "city" in payload:
-        need.city = payload["city"]
-    if "state" in payload:
-        need.state = payload["state"]
-
-    db.flush()
-    db.commit()
-
-    need = db.query(Need).options(
-        joinedload(Need.medicine),
-        joinedload(Need.recipient),
-    ).filter(Need.id == need.id).first()
-
-    return need_to_dict(need)
-
-
-# ── DELETE /needs/{id} ────────────────────────────────────────────────────────
 @router.delete("/{need_id}", summary="Cancel need (recipient)")
 def delete_need(
     need_id: str,
-    db: Session = Depends(get_db),
+    db: Database = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    try:
-        nid = uuid.UUID(need_id)
-    except ValueError:
+    nid = str(need_id)
+    doc = db["needs"].find_one({"$or": [{"_id": nid}, {"id": nid}]})
+    if not doc:
         raise ResourceNotFoundError("Need")
 
-    need = db.query(Need).filter(Need.id == nid).first()
-    if not need:
-        raise ResourceNotFoundError("Need")
-
-    if str(need.recipient_id) != str(current_user.id) and current_user.role != UserRole.ADMIN:
+    if str(doc.get("recipient_id")) != str(current_user.id):
         raise AuthorizationError("Not your need")
 
-    need.status = NeedStatus.CANCELLED
-    db.flush()
-
-    audit_repository.log(
-        db, event=AuditEvent.NEED_CANCELLED,
-        user_id=current_user.id, user_name=current_user.name,
-        resource_type="Need", resource_id=str(need.id),
-    )
-
-    db.commit()
+    db["needs"].delete_one({"$or": [{"_id": nid}, {"id": nid}]})
     return {"message": "Need cancelled successfully"}

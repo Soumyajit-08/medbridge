@@ -63,6 +63,5 @@ export const ROUTES = {
     users: '/admin/users',
     listings: '/admin/listings',
     auditLogs: '/admin/audit-logs',
-    analytics: '/admin/analytics',
   },
 } as const;

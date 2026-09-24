@@ -13,7 +13,6 @@ import {
   Flag,
   Users,
   ScrollText,
-  BarChart3,
   type LucideIcon,
 } from 'lucide-react';
 import { ROUTES } from '@/lib/constants';
@@ -55,7 +54,6 @@ export function getSidebarNavItems(role: UserRole): SidebarNavItem[] {
         { label: 'Users', href: ROUTES.admin.users, icon: Users },
         { label: 'Listings', href: ROUTES.admin.listings, icon: Package },
         { label: 'Audit Logs', href: ROUTES.admin.auditLogs, icon: ScrollText },
-        { label: 'Impact Analytics', href: ROUTES.admin.analytics, icon: BarChart3 },
       ];
     default:
       return [];
