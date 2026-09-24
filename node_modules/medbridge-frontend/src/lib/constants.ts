@@ -1,5 +1,5 @@
 export const APP_NAME = import.meta.env.VITE_APP_NAME || 'MedBridge';
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1';
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://medbridge-37ac.onrender.com/api/v1';
 export const MOCK_MODE = import.meta.env.VITE_MOCK_MODE === 'true';
 
 export const ELIGIBILITY_MESSAGE =
