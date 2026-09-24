@@ -49,14 +49,14 @@ export function MyNeedsPage() {
               className="rounded-[var(--radius-card)] border border-border bg-surface p-5 shadow-[var(--shadow-card)]"
             >
               <div className="flex items-start justify-between gap-2">
-                <h2 className="font-semibold text-text-primary">{need.medicine.name}</h2>
+                <h2 className="font-semibold text-text-primary">{need.medicine?.name ?? 'Medicine'}</h2>
                 <StatusBadge status={need.status} />
               </div>
               <p className="mt-2 text-sm text-text-secondary">
-                Qty {need.quantityNeeded} · {need.location.city}, {need.location.state}
+                Qty {need.quantityNeeded}{[need.location?.city, need.location?.state].filter(Boolean).length > 0 ? ` · ${[need.location?.city, need.location?.state].filter(Boolean).join(', ')}` : ''}
               </p>
               <p className="mt-1 text-xs text-text-secondary">
-                Expires {formatDate(need.expiresAt)} · {need.matchCount} matches
+                Expires {formatDate(need.expiresAt)} · {need.matchCount ?? 0} matches
               </p>
             </article>
           ))}

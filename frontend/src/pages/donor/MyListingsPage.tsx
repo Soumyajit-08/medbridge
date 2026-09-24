@@ -1,18 +1,25 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { PlusCircle } from 'lucide-react';
+import { PlusCircle, Trash2 } from 'lucide-react';
 import { PageHeader } from '@/components/common/PageHeader';
 import { Button } from '@/components/common/Button';
 import { Pagination } from '@/components/common/Pagination';
 import { StatusBadge } from '@/components/common/StatusBadge';
 import { QueryState } from '@/components/dashboard/QueryState';
-import { useMyListings } from '@/hooks/useListings';
+import { useMyListings, useDeleteListing } from '@/hooks/useListings';
 import { ROUTES } from '@/lib/constants';
 import { formatDate } from '@/utils/formatDate';
 
 export function MyListingsPage() {
   const [page, setPage] = useState(1);
   const { data, isLoading, isError, refetch } = useMyListings({ page });
+  const deleteListing = useDeleteListing();
+
+  const handleDelete = (id: string) => {
+    if (window.confirm('Are you sure you want to delete this listing?')) {
+      deleteListing.mutate(id);
+    }
+  };
 
   return (
     <>
@@ -42,8 +49,8 @@ export function MyListingsPage() {
           </Link>
         }
       >
-        <div className="overflow-hidden rounded-[var(--radius-card)] border border-border bg-surface shadow-[var(--shadow-card)]">
-          <table className="w-full text-left text-sm">
+        <div className="overflow-x-auto rounded-[var(--radius-card)] border border-border bg-surface shadow-[var(--shadow-card)]">
+          <table className="w-full min-w-[560px] text-left text-sm">
             <thead className="border-b border-border bg-background text-text-secondary">
               <tr>
                 <th className="px-4 py-3 font-medium">Medicine</th>
@@ -57,7 +64,7 @@ export function MyListingsPage() {
               {data?.data.map((listing) => (
                 <tr key={listing.id}>
                   <td className="px-4 py-3 font-medium text-text-primary">
-                    {listing.medicine.name}
+                    {listing.medicine?.name ?? 'Medicine'}
                   </td>
                   <td className="px-4 py-3 text-text-secondary">{listing.quantityAvailable}</td>
                   <td className="px-4 py-3 text-text-secondary">
@@ -67,11 +74,26 @@ export function MyListingsPage() {
                     <StatusBadge status={listing.status} />
                   </td>
                   <td className="px-4 py-3 text-right">
-                    <Link to={ROUTES.donor.listingDetails(listing.id)}>
-                      <Button variant="ghost" size="sm">
-                        View
-                      </Button>
-                    </Link>
+                    <div className="flex items-center justify-end gap-1">
+                      <Link to={ROUTES.donor.listingDetails(listing.id)}>
+                        <Button variant="ghost" size="sm">
+                          View
+                        </Button>
+                      </Link>
+                      {(listing.status === 'ACTIVE' || listing.status === 'CLAIM_PENDING') && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-danger hover:bg-danger/10 hover:text-danger p-1.5 h-auto"
+                          title="Delete listing"
+                          disabled={deleteListing.isPending}
+                          onClick={() => handleDelete(listing.id)}
+                        >
+                          <Trash2 className="size-4" aria-hidden="true" />
+                          <span className="sr-only">Delete</span>
+                        </Button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}

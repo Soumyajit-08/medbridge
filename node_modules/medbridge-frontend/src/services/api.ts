@@ -18,29 +18,45 @@ api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
 
 api.interceptors.response.use(
   (response) => response,
-  async (error: AxiosError<{ message?: string }>) => {
-    if (error.response?.status === 401) {
-      const originalRequest = error.config;
-      if (originalRequest && !originalRequest.url?.includes('/auth/refresh')) {
-        try {
-          const { data } = await axios.post(
-            `${API_BASE_URL}/auth/refresh`,
-            {},
-            { withCredentials: true },
-          );
-          const { accessToken, user } = data;
-          useAuthStore.getState().setAuth(user, accessToken);
-          if (originalRequest.headers) {
-            originalRequest.headers.Authorization = `Bearer ${accessToken}`;
-          }
-          return api(originalRequest);
-        } catch {
-          useAuthStore.getState().logout();
+  async (error: AxiosError<{ message?: string; detail?: string | Array<{ msg: string }> }>) => {
+    const originalRequest = error.config;
+    const url = originalRequest?.url || '';
+    const isAuthEndpoint =
+      url.includes('/auth/login') ||
+      url.includes('/auth/register') ||
+      url.includes('/auth/refresh') ||
+      url.includes('/auth/forgot-password') ||
+      url.includes('/auth/reset-password');
+
+    if (error.response?.status === 401 && !isAuthEndpoint && originalRequest) {
+      try {
+        const { data } = await axios.post(
+          `${API_BASE_URL}/auth/refresh`,
+          {},
+          { withCredentials: true },
+        );
+        const { accessToken, user } = data;
+        useAuthStore.getState().setAuth(user, accessToken);
+        if (originalRequest.headers) {
+          originalRequest.headers.Authorization = `Bearer ${accessToken}`;
         }
+        return api(originalRequest);
+      } catch {
+        useAuthStore.getState().logout();
       }
     }
-    const message =
-      error.response?.data?.message || 'Something went wrong. Please try again.';
+
+    let message = 'Something went wrong. Please try again.';
+    if (error.response?.data?.message) {
+      message = error.response.data.message;
+    } else if (typeof error.response?.data?.detail === 'string') {
+      message = error.response.data.detail;
+    } else if (Array.isArray(error.response?.data?.detail)) {
+      message = error.response.data.detail.map((e) => e.msg).join(', ');
+    } else if (error.message) {
+      message = error.message;
+    }
+
     return Promise.reject(new Error(message));
   },
 );

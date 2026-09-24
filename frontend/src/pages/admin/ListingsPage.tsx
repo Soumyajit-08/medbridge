@@ -22,8 +22,8 @@ export function ListingsPage() {
         emptyTitle="No listings"
         emptyDescription="No listings on the platform."
       >
-        <div className="overflow-hidden rounded-[var(--radius-card)] border border-border bg-surface shadow-[var(--shadow-card)]">
-          <table className="w-full text-left text-sm">
+        <div className="overflow-x-auto rounded-[var(--radius-card)] border border-border bg-surface shadow-[var(--shadow-card)]">
+          <table className="w-full min-w-[560px] text-left text-sm">
             <thead className="border-b border-border bg-background text-text-secondary">
               <tr>
                 <th className="px-4 py-3 font-medium">Medicine</th>

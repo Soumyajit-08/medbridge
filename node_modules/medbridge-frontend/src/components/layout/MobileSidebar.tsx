@@ -63,7 +63,7 @@ export function MobileSidebar({ role }: { role?: import('@/types/auth').UserRole
             <NavLink
               key={href}
               to={href}
-              end={href.endsWith('/donor') || href.endsWith('/recipient') || href.endsWith('/admin')}
+              end
               className={({ isActive }) =>
                 cn(
                   'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',

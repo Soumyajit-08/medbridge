@@ -21,7 +21,7 @@ export function Sidebar({ role }: SidebarProps) {
   return (
     <aside
       className={cn(
-        'hidden shrink-0 flex-col border-r border-border bg-surface transition-all duration-300 lg:flex',
+        'sticky top-16 hidden shrink-0 h-[calc(100vh-4rem)] overflow-y-auto flex-col border-r border-border bg-surface transition-all duration-300 lg:flex z-30',
         sidebarOpen ? 'w-64' : 'w-[72px]',
       )}
     >
@@ -47,7 +47,7 @@ export function Sidebar({ role }: SidebarProps) {
           <NavLink
             key={href}
             to={href}
-            end={href.endsWith('/donor') || href.endsWith('/recipient') || href.endsWith('/admin')}
+            end
             className={({ isActive }) =>
               cn(
                 'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',

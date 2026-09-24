@@ -5,6 +5,7 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { queryClient } from '@/lib/queryClient';
 import { ErrorBoundary } from '@/components/common/ErrorBoundary';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
+import { SplashScreen } from '@/components/common/SplashScreen';
 import { ToastContainer } from '@/components/feedback/Toast';
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 import { useAuthInit } from '@/hooks/useAuth';
@@ -136,6 +137,7 @@ export default function App() {
       <HelmetProvider>
         <QueryClientProvider client={queryClient}>
           <BrowserRouter>
+            <SplashScreen />
             <AppRoutes />
             <ToastContainer />
           </BrowserRouter>

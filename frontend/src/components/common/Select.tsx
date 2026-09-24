@@ -41,8 +41,8 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
           <label
             htmlFor={id}
             className={cn(
-              'mb-1.5 block text-sm font-medium text-text-primary',
-              disabled && 'text-text-secondary',
+              'mb-1.5 block text-sm font-semibold text-slate-800 dark:text-slate-200',
+              disabled && 'text-slate-400',
             )}
           >
             {label}
@@ -63,31 +63,36 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
             aria-invalid={hasError || undefined}
             aria-describedby={hasError ? errorId : undefined}
             className={cn(
-              'flex h-10 w-full appearance-none rounded-lg border bg-surface px-3 py-2 pr-10 text-sm text-text-primary',
-              'transition-colors',
-              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background',
-              'disabled:cursor-not-allowed disabled:bg-background disabled:text-text-secondary',
+              'flex h-11 w-full appearance-none rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-[#0B132B] px-3.5 py-2.5 pr-10 text-sm text-slate-900 dark:text-white shadow-2xs [color-scheme:light] dark:[color-scheme:dark]',
+              'transition-all duration-200 cursor-pointer',
+              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:border-primary',
+              'disabled:cursor-not-allowed disabled:bg-slate-100 dark:disabled:bg-slate-900 disabled:text-slate-400',
               hasError
                 ? 'border-critical focus-visible:ring-critical/50'
-                : 'border-border hover:border-text-secondary/40',
+                : 'border-slate-300 dark:border-slate-700 hover:border-slate-400 dark:hover:border-slate-600',
               className,
             )}
             {...props}
           >
             {placeholder && (
-              <option value="" disabled>
+              <option value="" disabled className="bg-white dark:bg-[#0B132B] text-slate-500 dark:text-slate-400">
                 {placeholder}
               </option>
             )}
             {options.map((option) => (
-              <option key={option.value} value={option.value} disabled={option.disabled}>
+              <option
+                key={option.value}
+                value={option.value}
+                disabled={option.disabled}
+                className="bg-white dark:bg-[#0B132B] text-slate-900 dark:text-white py-1"
+              >
                 {option.label}
               </option>
             ))}
           </select>
 
           <ChevronDown
-            className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-text-secondary"
+            className="pointer-events-none absolute right-3.5 top-1/2 size-4 -translate-y-1/2 text-slate-500 dark:text-slate-400"
             aria-hidden="true"
           />
         </div>
@@ -103,3 +108,4 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
 );
 
 Select.displayName = 'Select';
+

@@ -81,10 +81,10 @@ export function ListingDetails({
       </dl>
 
       <LocationCard
-        city={listing.location.city}
-        state={listing.location.state}
-        postalCode={listing.location.postalCode}
-        approximateDistanceKm={listing.location.approximateDistanceKm}
+        city={listing.location?.city ?? ''}
+        state={listing.location?.state ?? ''}
+        postalCode={listing.location?.postalCode ?? ''}
+        approximateDistanceKm={listing.location?.approximateDistanceKm}
       />
 
       {showEligibility && (

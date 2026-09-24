@@ -2,13 +2,22 @@ import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { PageHeader } from '@/components/common/PageHeader';
+import { MedicineAutocomplete } from '@/components/medicines/MedicineAutocomplete';
 import { Input } from '@/components/common/Input';
+import { Select } from '@/components/common/Select';
 import { Textarea } from '@/components/common/Textarea';
 import { Button } from '@/components/common/Button';
 import { Alert } from '@/components/feedback/Alert';
 import { useCreateNeed } from '@/hooks/useNeeds';
 import { needFormSchema, type NeedFormData } from '@/schemas/needSchemas';
 import { ROUTES } from '@/lib/constants';
+
+const URGENCY_OPTIONS = [
+  { value: 'LOW', label: 'Low' },
+  { value: 'MEDIUM', label: 'Medium' },
+  { value: 'HIGH', label: 'High' },
+  { value: 'CRITICAL', label: 'Critical' },
+];
 
 export function CreateNeedPage() {
   const navigate = useNavigate();
@@ -17,6 +26,7 @@ export function CreateNeedPage() {
   const {
     register,
     handleSubmit,
+    setValue,
     formState: { errors },
   } = useForm<NeedFormData>({
     resolver: zodResolver(needFormSchema),
@@ -48,11 +58,10 @@ export function CreateNeedPage() {
           <Alert variant="error">Unable to post need. Please try again.</Alert>
         )}
 
-        <Input
-          label="Medicine ID"
-          placeholder="Enter medicine ID from catalog"
+        <MedicineAutocomplete
+          label="Medicine name"
+          onChange={(medicine) => setValue('medicineId', medicine?.id ?? '')}
           error={errors.medicineId?.message}
-          {...register('medicineId')}
         />
 
         <Input
@@ -63,21 +72,12 @@ export function CreateNeedPage() {
           {...register('quantityNeeded')}
         />
 
-        <div className="space-y-1.5">
-          <label htmlFor="urgency" className="block text-sm font-medium text-text-primary">
-            Urgency
-          </label>
-          <select
-            id="urgency"
-            className="flex h-10 w-full rounded-lg border border-border bg-surface px-3 text-sm"
-            {...register('urgency')}
-          >
-            <option value="LOW">Low</option>
-            <option value="MEDIUM">Medium</option>
-            <option value="HIGH">High</option>
-            <option value="CRITICAL">Critical</option>
-          </select>
-        </div>
+        <Select
+          label="Urgency"
+          options={URGENCY_OPTIONS}
+          error={errors.urgency?.message}
+          {...register('urgency')}
+        />
 
         <div className="grid gap-4 sm:grid-cols-2">
           <Input label="City" error={errors.city?.message} {...register('city')} />

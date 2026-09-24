@@ -27,14 +27,30 @@ export function AdminDashboardPage() {
 
       <QueryState isLoading={isLoading} isError={isError} onRetry={() => refetch()}>
         <StatsGrid>
-          <StatCard label="Total users" value={stats?.totalUsers ?? 0} icon={Users} />
+          <StatCard
+            label="Total users"
+            value={stats?.totalUsers ?? 0}
+            icon={Users}
+            href={ROUTES.admin.users}
+          />
           <StatCard
             label="Pending verifications"
             value={stats?.pendingVerifications ?? 0}
             icon={FileCheck}
+            href={ROUTES.admin.verifications}
           />
-          <StatCard label="Active listings" value={stats?.activeListings ?? 0} icon={Package} />
-          <StatCard label="Pending claims" value={stats?.pendingClaims ?? 0} icon={ClipboardList} />
+          <StatCard
+            label="Active listings"
+            value={stats?.activeListings ?? 0}
+            icon={Package}
+            href={ROUTES.admin.listings}
+          />
+          <StatCard
+            label="Pending claims"
+            value={stats?.pendingClaims ?? 0}
+            icon={ClipboardList}
+            href={ROUTES.admin.reports}
+          />
         </StatsGrid>
 
         <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

@@ -12,24 +12,38 @@ import { useAuth } from '@/hooks/useAuth';
 import { ROUTES } from '@/lib/constants';
 import { Button } from '@/components/common/Button';
 import { Input } from '@/components/common/Input';
+import { Select } from '@/components/common/Select';
 import { Alert } from '@/components/feedback/Alert';
 import { cn } from '@/utils/cn';
+
+const DONOR_TYPE_OPTIONS = [
+  { value: 'HOUSEHOLD', label: 'Household' },
+  { value: 'PHARMACY', label: 'Pharmacy' },
+  { value: 'AUTHORIZED_ORGANIZATION', label: 'Authorized Organization' },
+];
+
+const ORGANIZATION_TYPE_OPTIONS = [
+  { value: 'NGO', label: 'NGO' },
+  { value: 'CLINIC', label: 'Clinic' },
+  { value: 'HOSPITAL', label: 'Hospital' },
+  { value: 'AUTHORIZED_HEALTHCARE_ORGANIZATION', label: 'Authorized Healthcare Organization' },
+];
 
 type RegisterRole = 'DONOR' | 'RECIPIENT';
 
 function RoleToggle({ role, onChange }: { role: RegisterRole; onChange: (r: RegisterRole) => void }) {
   return (
-    <div className="grid grid-cols-2 gap-2 rounded-lg bg-background p-1">
+    <div className="grid grid-cols-2 gap-1.5 rounded-xl bg-slate-100 dark:bg-[#0B132B] p-1.5 border border-slate-200 dark:border-slate-700 shadow-2xs">
       {(['DONOR', 'RECIPIENT'] as const).map((option) => (
         <button
           key={option}
           type="button"
           onClick={() => onChange(option)}
           className={cn(
-            'rounded-md px-3 py-2 text-sm font-medium transition-colors',
+            'rounded-lg px-4 py-2.5 text-sm font-semibold transition-all duration-200 cursor-pointer',
             role === option
-              ? 'bg-surface text-primary shadow-sm'
-              : 'text-text-secondary hover:text-text-primary',
+              ? 'bg-primary text-white shadow-md scale-[1.01]'
+              : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-white/80 dark:hover:bg-slate-800/80',
           )}
         >
           {option === 'DONOR' ? 'Donor' : 'Recipient'}
@@ -79,21 +93,12 @@ function DonorForm({
       <Input label="Full name" autoComplete="name" error={errors.name?.message} {...register('name')} />
       <Input label="Email" type="email" autoComplete="email" error={errors.email?.message} {...register('email')} />
       <Input label="Phone" type="tel" autoComplete="tel" error={errors.phone?.message} {...register('phone')} />
-      <div className="space-y-1.5">
-        <label htmlFor="donorType" className="block text-sm font-medium text-text-primary">
-          Donor type
-        </label>
-        <select
-          id="donorType"
-          className="flex h-10 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm"
-          {...register('donorType')}
-        >
-          <option value="HOUSEHOLD">Household</option>
-          <option value="PHARMACY">Pharmacy</option>
-          <option value="AUTHORIZED_ORGANIZATION">Authorized Organization</option>
-        </select>
-        {errors.donorType && <p className="text-sm text-critical">{errors.donorType.message}</p>}
-      </div>
+      <Select
+        label="Donor type"
+        options={DONOR_TYPE_OPTIONS}
+        error={errors.donorType?.message}
+        {...register('donorType')}
+      />
       <Input label="Password" type="password" autoComplete="new-password" error={errors.password?.message} {...register('password')} />
       <Input label="Confirm password" type="password" autoComplete="new-password" error={errors.confirmPassword?.message} {...register('confirmPassword')} />
       <Button type="submit" className="w-full" isLoading={isRegistering}>
@@ -142,22 +147,12 @@ function RecipientForm({
       <Input label="Email" type="email" autoComplete="email" error={errors.email?.message} {...register('email')} />
       <Input label="Phone" type="tel" autoComplete="tel" error={errors.phone?.message} {...register('phone')} />
       <Input label="Organization name" error={errors.organizationName?.message} {...register('organizationName')} />
-      <div className="space-y-1.5">
-        <label htmlFor="organizationType" className="block text-sm font-medium text-text-primary">
-          Organization type
-        </label>
-        <select
-          id="organizationType"
-          className="flex h-10 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm"
-          {...register('organizationType')}
-        >
-          <option value="NGO">NGO</option>
-          <option value="CLINIC">Clinic</option>
-          <option value="HOSPITAL">Hospital</option>
-          <option value="AUTHORIZED_HEALTHCARE_ORGANIZATION">Authorized Healthcare Organization</option>
-        </select>
-        {errors.organizationType && <p className="text-sm text-critical">{errors.organizationType.message}</p>}
-      </div>
+      <Select
+        label="Organization type"
+        options={ORGANIZATION_TYPE_OPTIONS}
+        error={errors.organizationType?.message}
+        {...register('organizationType')}
+      />
       <Input label="Password" type="password" autoComplete="new-password" error={errors.password?.message} {...register('password')} />
       <Input label="Confirm password" type="password" autoComplete="new-password" error={errors.confirmPassword?.message} {...register('confirmPassword')} />
       <Button type="submit" className="w-full" isLoading={isRegistering}>

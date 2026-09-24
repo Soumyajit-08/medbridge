@@ -43,10 +43,10 @@ export function VerificationDetailsPage() {
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <h2 className="text-xl font-bold text-text-primary">
-                    {verification.organizationName}
+                    {verification.organizationName || 'Recipient Organization'}
                   </h2>
                   <p className="mt-1 text-sm text-text-secondary">
-                    {verification.organizationType.replace(/_/g, ' ')}
+                    {(verification.organizationType || 'ORGANIZATION').replace(/_/g, ' ')}
                   </p>
                 </div>
                 <StatusBadge status={verification.status} />

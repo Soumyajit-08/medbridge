@@ -19,7 +19,7 @@ export function DashboardSection({
   return (
     <section
       className={cn(
-        'rounded-[var(--radius-card)] border border-border bg-surface p-5 shadow-[var(--shadow-card)]',
+        'rounded-2xl border-2 border-slate-200/90 dark:border-slate-800 bg-white dark:bg-[#111C38] p-6 shadow-sm transition-all duration-200',
         className,
       )}
     >

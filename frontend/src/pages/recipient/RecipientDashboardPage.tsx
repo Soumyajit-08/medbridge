@@ -36,13 +36,25 @@ export function RecipientDashboardPage() {
             label="Available matches"
             value={stats?.availableMatches ?? 0}
             icon={Package}
+            href={ROUTES.recipient.medicines}
           />
-          <StatCard label="Active claims" value={stats?.activeClaims ?? 0} icon={ClipboardList} />
-          <StatCard label="Pending needs" value={stats?.pendingNeeds ?? 0} icon={Heart} />
+          <StatCard
+            label="Active claims"
+            value={stats?.activeClaims ?? 0}
+            icon={ClipboardList}
+            href={ROUTES.recipient.claims}
+          />
+          <StatCard
+            label="Pending needs"
+            value={stats?.pendingNeeds ?? 0}
+            icon={Heart}
+            href={ROUTES.recipient.needs}
+          />
           <StatCard
             label="Completed transfers"
             value={stats?.completedTransfers ?? 0}
             icon={Package}
+            href={ROUTES.recipient.claims}
           />
         </StatsGrid>
 

@@ -18,8 +18,9 @@ export function NeedCard({ need, className }: NeedCardProps) {
     <Link
       to={ROUTES.recipient.needs}
       className={cn(
-        'block rounded-[var(--radius-card)] border border-border bg-surface p-4 shadow-[var(--shadow-card)]',
-        'transition-shadow hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30',
+        'group block rounded-[var(--radius-card)] border border-border bg-surface p-4 shadow-[var(--shadow-card)]',
+        'transition-all duration-300 ease-out hover:-translate-y-1.5 hover:shadow-xl hover:border-primary/40 active:scale-[0.99]',
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2',
         className,
       )}
     >
@@ -40,7 +41,7 @@ export function NeedCard({ need, className }: NeedCardProps) {
       <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-text-secondary">
         <span className="inline-flex items-center gap-1">
           <MapPin className="size-3.5" aria-hidden="true" />
-          {need.location.city}, {need.location.state}
+          {[need.location?.city, need.location?.state].filter(Boolean).join(', ') || '—'}
         </span>
         <span>Expires {formatDate(need.expiresAt)}</span>
         <span>{formatRelativeTime(need.createdAt)}</span>

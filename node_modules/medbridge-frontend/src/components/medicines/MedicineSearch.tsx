@@ -26,19 +26,13 @@ export function MedicineSearch({ onSelect, className }: MedicineSearchProps) {
 
   return (
     <div className={cn('space-y-4', className)}>
-      <div className="relative">
-        <Search
-          className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-text-secondary"
-          aria-hidden="true"
-        />
-        <Input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search medicines by name or generic name..."
-          className="pl-9"
-          aria-label="Search medicines"
-        />
-      </div>
+      <Input
+        icon={Search}
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        placeholder="Search medicines by name or generic name..."
+        aria-label="Search medicines"
+      />
 
       {isLoading && debouncedQuery.length >= 2 && (
         <div className="flex justify-center py-8">

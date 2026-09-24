@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { ClipboardList, History, Package, PlusCircle } from 'lucide-react';
+import { ClipboardList, History, Package, PlusCircle, Trash2 } from 'lucide-react';
 import { PageHeader } from '@/components/common/PageHeader';
 import { Button } from '@/components/common/Button';
 import { StatCard } from '@/components/dashboard/StatCard';
@@ -8,7 +8,7 @@ import { DashboardSection } from '@/components/dashboard/DashboardSection';
 import { QueryState } from '@/components/dashboard/QueryState';
 import { useDonorDashboard } from '@/hooks/useDashboard';
 import { useClaims } from '@/hooks/useClaims';
-import { useMyListings } from '@/hooks/useListings';
+import { useMyListings, useDeleteListing } from '@/hooks/useListings';
 import { ROUTES } from '@/lib/constants';
 import { StatusBadge } from '@/components/common/StatusBadge';
 import { formatRelativeTime } from '@/utils/formatDate';
@@ -17,6 +17,15 @@ export function DonorDashboardPage() {
   const { data: stats, isLoading, isError, refetch } = useDonorDashboard();
   const { data: recentListings } = useMyListings({ limit: 5 });
   const { data: pendingClaims } = useClaims({ status: 'PENDING' });
+  const deleteListing = useDeleteListing();
+
+  const handleDelete = (id: string, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (window.confirm('Are you sure you want to delete this listing?')) {
+      deleteListing.mutate(id);
+    }
+  };
 
   return (
     <>
@@ -35,17 +44,29 @@ export function DonorDashboardPage() {
 
       <QueryState isLoading={isLoading} isError={isError} onRetry={() => refetch()}>
         <StatsGrid>
-          <StatCard label="Total listings" value={stats?.totalListings ?? 0} icon={Package} />
-          <StatCard label="Active listings" value={stats?.activeListings ?? 0} icon={Package} />
+          <StatCard
+            label="Total listings"
+            value={stats?.totalListings ?? 0}
+            icon={Package}
+            href={ROUTES.donor.listings}
+          />
+          <StatCard
+            label="Active listings"
+            value={stats?.activeListings ?? 0}
+            icon={Package}
+            href={ROUTES.donor.listings}
+          />
           <StatCard
             label="Pending claims"
             value={stats?.pendingClaims ?? 0}
             icon={ClipboardList}
+            href={ROUTES.donor.claims}
           />
           <StatCard
             label="Completed transfers"
             value={stats?.completedTransfers ?? 0}
             icon={History}
+            href={ROUTES.donor.history}
           />
         </StatsGrid>
 
@@ -68,13 +89,28 @@ export function DonorDashboardPage() {
                   <li key={listing.id} className="flex items-center justify-between py-3 first:pt-0">
                     <div>
                       <p className="text-sm font-medium text-text-primary">
-                        {listing.medicine.name}
+                        {listing.medicine?.name ?? 'Medicine'}
                       </p>
                       <p className="text-xs text-text-secondary">
                         {formatRelativeTime(listing.createdAt)}
                       </p>
                     </div>
-                    <StatusBadge status={listing.status} />
+                    <div className="flex items-center gap-2">
+                      <StatusBadge status={listing.status} />
+                      {(listing.status === 'ACTIVE' || listing.status === 'CLAIM_PENDING') && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-danger hover:bg-danger/10 hover:text-danger p-1.5 h-auto"
+                          title="Delete listing"
+                          disabled={deleteListing.isPending}
+                          onClick={(e) => handleDelete(listing.id, e)}
+                        >
+                          <Trash2 className="size-4" aria-hidden="true" />
+                          <span className="sr-only">Delete listing</span>
+                        </Button>
+                      )}
+                    </div>
                   </li>
                 ))}
               </ul>

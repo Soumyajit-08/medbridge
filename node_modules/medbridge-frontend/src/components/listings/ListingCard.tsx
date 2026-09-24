@@ -26,7 +26,7 @@ export interface ListingCardProps {
 }
 
 export function ListingCard({ listing, className, linkTo }: ListingCardProps) {
-  const donorConfig = donorTypeConfig[listing.donorType];
+  const donorConfig = donorTypeConfig[listing.donorType] ?? donorTypeConfig.HOUSEHOLD;
   const DonorIcon = donorConfig.icon;
   const href = linkTo ?? ROUTES.recipient.medicineDetails(listing.id);
 
@@ -34,8 +34,9 @@ export function ListingCard({ listing, className, linkTo }: ListingCardProps) {
     <Link
       to={href}
       className={cn(
-        'block rounded-[var(--radius-card)] border border-border bg-surface shadow-[var(--shadow-card)]',
-        'transition-shadow hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30',
+        'group block rounded-[var(--radius-card)] border border-border bg-surface shadow-[var(--shadow-card)]',
+        'transition-all duration-300 ease-out hover:-translate-y-1.5 hover:shadow-xl hover:border-primary/40 active:scale-[0.99]',
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2',
         className,
       )}
     >
@@ -43,12 +44,12 @@ export function ListingCard({ listing, className, linkTo }: ListingCardProps) {
         {listing.imageUrl ? (
           <img
             src={listing.imageUrl}
-            alt={listing.medicine.name}
-            className="size-full object-cover"
+            alt={listing.medicine?.name ?? 'Medicine'}
+            className="size-full object-cover transition-transform duration-500 ease-out group-hover:scale-108"
           />
         ) : (
-          <div className="flex size-full items-center justify-center text-text-secondary">
-            <Pill className="size-12 opacity-40" aria-hidden="true" />
+          <div className="flex size-full items-center justify-center text-text-secondary bg-primary/5 transition-colors duration-300 group-hover:bg-primary/10">
+            <Pill className="size-12 opacity-40 text-primary transition-all duration-300 group-hover:scale-110 group-hover:opacity-75" aria-hidden="true" />
           </div>
         )}
         <div className="absolute right-2 top-2">
@@ -58,8 +59,8 @@ export function ListingCard({ listing, className, linkTo }: ListingCardProps) {
 
       <div className="p-4 space-y-3">
         <div className="flex items-start justify-between gap-2">
-          <h3 className="font-semibold text-text-primary line-clamp-1">
-            {listing.medicine.name}
+          <h3 className="font-semibold text-text-primary line-clamp-1 group-hover:text-primary transition-colors duration-200">
+            {listing.medicine?.name ?? 'Medicine'}
           </h3>
           <StatusBadge status={listing.status} />
         </div>
@@ -78,7 +79,7 @@ export function ListingCard({ listing, className, linkTo }: ListingCardProps) {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <DistanceBadge distanceKm={listing.location.approximateDistanceKm} />
+          <DistanceBadge distanceKm={listing.location?.approximateDistanceKm} />
           <span
             className="inline-flex items-center gap-1 rounded-full border border-border bg-background px-2.5 py-0.5 text-xs text-text-secondary"
           >

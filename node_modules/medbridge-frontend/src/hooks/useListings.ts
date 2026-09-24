@@ -31,6 +31,7 @@ export function useCreateListing() {
       listingService.createListing(payload, image),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['listings'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
     },
   });
 }
@@ -39,6 +40,9 @@ export function useDeleteListing() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => listingService.deleteListing(id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['listings'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['listings'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+    },
   });
 }

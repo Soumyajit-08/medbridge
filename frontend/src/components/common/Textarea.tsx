@@ -19,8 +19,8 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
           <label
             htmlFor={id}
             className={cn(
-              'mb-1.5 block text-sm font-medium text-text-primary',
-              disabled && 'text-text-secondary',
+              'mb-1.5 block text-sm font-semibold text-slate-800 dark:text-slate-200',
+              disabled && 'text-slate-400',
             )}
           >
             {label}
@@ -41,14 +41,14 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
           aria-invalid={hasError || undefined}
           aria-describedby={hasError ? errorId : undefined}
           className={cn(
-            'flex min-h-[80px] w-full resize-y rounded-lg border bg-surface px-3 py-2 text-sm text-text-primary',
-            'placeholder:text-text-secondary',
+            'flex min-h-[80px] w-full resize-y rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-[#0B132B] px-3.5 py-2 text-sm text-slate-900 dark:text-white shadow-2xs',
+            'placeholder:text-slate-400 dark:placeholder-slate-500',
             'transition-colors',
-            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background',
-            'disabled:cursor-not-allowed disabled:bg-background disabled:text-text-secondary',
+            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:border-primary',
+            'disabled:cursor-not-allowed disabled:bg-slate-100 dark:disabled:bg-slate-900 disabled:text-slate-400',
             hasError
               ? 'border-critical focus-visible:ring-critical/50'
-              : 'border-border hover:border-text-secondary/40',
+              : 'border-slate-300 dark:border-slate-700 hover:border-slate-400 dark:hover:border-slate-600',
             className,
           )}
           {...props}

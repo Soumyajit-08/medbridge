@@ -24,6 +24,8 @@ export interface Listing {
   id: string;
   donorId: string;
   donorName: string;
+  donorEmail?: string;
+  donorPhone?: string;
   donorType: DonorType;
   medicine: Medicine;
   batchNumber: string;
@@ -40,6 +42,13 @@ export interface Listing {
   eligibilityScreeningPassed: boolean;
   createdAt: string;
   updatedAt: string;
+  donor?: {
+    id: string;
+    name: string;
+    email?: string;
+    phone?: string;
+    donorType?: DonorType;
+  };
 }
 
 export interface ListingFilters {

@@ -4,8 +4,11 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { PageHeader } from '@/components/common/PageHeader';
 import { Input } from '@/components/common/Input';
+import { Select } from '@/components/common/Select';
 import { Button } from '@/components/common/Button';
 import { Alert } from '@/components/feedback/Alert';
+import { MedicineAutocomplete } from '@/components/medicines/MedicineAutocomplete';
+import type { Medicine } from '@/types/medicine';
 import { useCreateListing } from '@/hooks/useListings';
 import { ROUTES, SAFETY_CHECKLIST_ITEMS } from '@/lib/constants';
 import {
@@ -13,15 +16,23 @@ import {
   type CreateListingFormData,
 } from '@/schemas/listingSchemas';
 import { cn } from '@/utils/cn';
+import { getErrorMessage } from '@/services/api';
+
+const PACKAGING_CONDITION_OPTIONS = [
+  { value: 'SEALED_INTACT', label: 'Sealed / intact' },
+  { value: 'DAMAGED', label: 'Damaged' },
+];
 
 export function CreateListingPage() {
   const navigate = useNavigate();
   const createListing = useCreateListing();
   const [image, setImage] = useState<File | undefined>();
   const [checklist, setChecklist] = useState<Record<string, boolean>>({});
+  const [selectedMedicine, setSelectedMedicine] = useState<Medicine | null>(null);
 
   const {
     register,
+    setValue,
     handleSubmit,
     formState: { errors },
   } = useForm<CreateListingFormData>({
@@ -73,14 +84,16 @@ export function CreateListingPage() {
         className="mx-auto max-w-2xl space-y-8 rounded-[var(--radius-card)] border border-border bg-surface p-6 shadow-[var(--shadow-card)]"
       >
         {createListing.isError && (
-          <Alert variant="error">Unable to create listing. Please try again.</Alert>
+          <Alert variant="error">{getErrorMessage(createListing.error)}</Alert>
         )}
 
-        <Input
-          label="Medicine ID"
-          placeholder="Enter medicine ID from catalog"
+        <MedicineAutocomplete
+          value={selectedMedicine}
+          onChange={(medicine) => {
+            setSelectedMedicine(medicine);
+            setValue('medicineId', medicine?.id ?? '', { shouldValidate: true });
+          }}
           error={errors.medicineId?.message}
-          {...register('medicineId', { required: 'Medicine ID is required' })}
         />
 
         <div className="grid gap-4 sm:grid-cols-2">
@@ -105,19 +118,12 @@ export function CreateListingPage() {
           {...register('quantity')}
         />
 
-        <div className="space-y-1.5">
-          <label htmlFor="packagingCondition" className="block text-sm font-medium text-text-primary">
-            Packaging condition
-          </label>
-          <select
-            id="packagingCondition"
-            className="flex h-10 w-full rounded-lg border border-border bg-surface px-3 text-sm"
-            {...register('packagingCondition')}
-          >
-            <option value="SEALED_INTACT">Sealed / intact</option>
-            <option value="DAMAGED">Damaged</option>
-          </select>
-        </div>
+        <Select
+          label="Packaging condition"
+          options={PACKAGING_CONDITION_OPTIONS}
+          error={errors.packagingCondition?.message}
+          {...register('packagingCondition')}
+        />
 
         <fieldset>
           <legend className="text-sm font-medium text-text-primary">Safety checklist</legend>

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { Search } from 'lucide-react';
 import { PageHeader } from '@/components/common/PageHeader';
 import { Input } from '@/components/common/Input';
 import { Button } from '@/components/common/Button';
@@ -30,6 +31,7 @@ export function BrowseMedicinesPage() {
       <div className="mb-6 max-w-md">
         <Input
           label="Search"
+          icon={Search}
           placeholder="Search by medicine name..."
           value={search}
           onChange={(e) => {
@@ -54,14 +56,14 @@ export function BrowseMedicinesPage() {
               className="rounded-[var(--radius-card)] border border-border bg-surface p-5 shadow-[var(--shadow-card)]"
             >
               <div className="flex items-start justify-between gap-2">
-                <h2 className="font-semibold text-text-primary">{listing.medicine.name}</h2>
+                <h2 className="font-semibold text-text-primary">{listing.medicine?.name ?? 'Medicine'}</h2>
                 <StatusBadge status={listing.status} />
               </div>
               <p className="mt-1 text-sm text-text-secondary">
-                {listing.medicine.strength} · Qty {listing.quantityAvailable}
+                {listing.medicine?.strength ?? ''} · Qty {listing.quantityAvailable}
               </p>
               <p className="mt-1 text-xs text-text-secondary">
-                Expires {formatDate(listing.expiryDate)} · {listing.location.city}
+                Expires {formatDate(listing.expiryDate)}{listing.location?.city ? ` · ${listing.location.city}` : ''}
               </p>
               <Link to={ROUTES.recipient.medicineDetails(listing.id)} className="mt-4 block">
                 <Button variant="outline" size="sm" className="w-full">

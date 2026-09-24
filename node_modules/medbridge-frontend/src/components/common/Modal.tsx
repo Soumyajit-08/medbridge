@@ -101,7 +101,7 @@ export function Modal({
         aria-labelledby={titleId}
         aria-describedby={description ? descriptionId : undefined}
         className={cn(
-          'relative z-10 w-full max-w-lg rounded-[var(--radius-card)] border border-border bg-surface p-6 shadow-[var(--shadow-card)]',
+          'relative z-10 w-full max-w-lg max-h-[calc(100vh-2rem)] overflow-y-auto rounded-[var(--radius-card)] border border-border bg-surface p-6 shadow-[var(--shadow-card)]',
           className,
         )}
       >

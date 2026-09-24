@@ -35,10 +35,10 @@ export function VerificationQueuePage() {
             >
               <div>
                 <h2 className="font-semibold text-text-primary">
-                  {verification.organizationName}
+                  {verification.organizationName || 'Recipient Organization'}
                 </h2>
                 <p className="mt-1 text-sm text-text-secondary">
-                  {verification.organizationType.replace(/_/g, ' ')} ·{' '}
+                  {(verification.organizationType || 'ORGANIZATION').replace(/_/g, ' ')} ·{' '}
                   {formatRelativeTime(verification.submittedAt)}
                 </p>
               </div>

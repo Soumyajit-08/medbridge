@@ -22,6 +22,7 @@ export function MedicineDetailsPage() {
   const { data: listing, isLoading, isError, refetch } = useListing(id);
   const createClaim = useCreateClaim();
   const [submitted, setSubmitted] = useState(false);
+  const [imageError, setImageError] = useState(false);
 
   const isVerified = user?.verificationStatus === 'APPROVED';
 
@@ -58,10 +59,11 @@ export function MedicineDetailsPage() {
         {listing && (
           <div className="grid gap-6 lg:grid-cols-2">
             <div className="rounded-[var(--radius-card)] border border-border bg-surface p-6 shadow-[var(--shadow-card)]">
-              {listing.imageUrl && (
+              {listing.imageUrl && !imageError && (
                 <img
                   src={listing.imageUrl}
-                  alt=""
+                  alt={listing.medicine?.name ?? 'Medicine'}
+                  onError={() => setImageError(true)}
                   className="mb-4 h-48 w-full rounded-lg object-cover"
                 />
               )}
@@ -84,12 +86,20 @@ export function MedicineDetailsPage() {
                 <div>
                   <dt className="text-text-secondary">Location</dt>
                   <dd className="font-medium text-text-primary">
-                    {listing.location.city}, {listing.location.state}
+                    {[listing.location?.city, listing.location?.state].filter(Boolean).join(', ') || '—'}
                   </dd>
                 </div>
                 <div>
                   <dt className="text-text-secondary">Donor</dt>
-                  <dd className="font-medium text-text-primary">{listing.donorName}</dd>
+                  <dd className="font-medium text-text-primary">{listing.donorName || '—'}</dd>
+                </div>
+                <div>
+                  <dt className="text-text-secondary">Mobile number</dt>
+                  <dd className="font-medium text-text-primary">{listing.donorPhone || listing.donor?.phone || '—'}</dd>
+                </div>
+                <div>
+                  <dt className="text-text-secondary">Email address</dt>
+                  <dd className="font-medium text-text-primary">{listing.donorEmail || listing.donor?.email || '—'}</dd>
                 </div>
               </dl>
             </div>
