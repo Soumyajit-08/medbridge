@@ -46,19 +46,18 @@ class Settings(BaseSettings):
     PORT: int = 8000
 
     # ── Security ──────────────────────────────────────────────────────────────
-    # These MUST be set in .env — no defaults for secrets!
-    JWT_ACCESS_SECRET: str
-    JWT_REFRESH_SECRET: str
+    JWT_ACCESS_SECRET: str = "medbridge-super-secret-jwt-access-key-2024-secure"
+    JWT_REFRESH_SECRET: str = "medbridge-super-secret-jwt-refresh-key-2024-secure"
     JWT_ACCESS_EXPIRES_MINUTES: int = 15
     JWT_REFRESH_EXPIRES_DAYS: int = 30
 
     # ── Database (MongoDB) ────────────────────────────────────────────────────
     MONGODB_URL: str = "mongodb+srv://soumyajitnag2021_db_user:Soumyajit_2021@cluster0.7ef5lug.mongodb.net/?appName=Cluster0"
     MONGODB_DB_NAME: str = "medbridge"
-    DATABASE_URL: str = "mongodb+srv://soumyajitnag2021_db_user:Soumyajit_2021@cluster0.7ef5lug.mongodb.net/?appName=Cluster0"
+    DATABASE_URL: str = ""
 
     # ── Redis ─────────────────────────────────────────────────────────────────
-    REDIS_URL: str = "redis://localhost:6379/0"
+    REDIS_URL: str = ""
 
     # ── CORS ──────────────────────────────────────────────────────────────────
     # Store as a plain string in .env: CORS_ORIGINS=http://localhost:5173,http://localhost:3000
