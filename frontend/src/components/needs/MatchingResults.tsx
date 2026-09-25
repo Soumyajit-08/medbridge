@@ -25,7 +25,7 @@ export function MatchingResults({
         </h3>
         <p className="text-sm text-text-secondary">
           {matches.length} listing{matches.length !== 1 ? 's' : ''} match your need for{' '}
-          {need.medicine.name}
+          {need.medicine?.name || 'this medicine'}
         </p>
       </div>
 

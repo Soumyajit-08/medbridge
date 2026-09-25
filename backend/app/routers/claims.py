@@ -43,8 +43,17 @@ def claim_to_dict(claim: Claim, db: Optional[Database] = None) -> dict:
             if doc:
                 recipient = doc
 
-    medicine = listing.get("medicine", {})
-    donor = listing.get("donor", {})
+    medicine = listing.get("medicine") or {}
+    if not medicine and db is not None and listing.get("medicine_id"):
+        doc = db["medicines"].find_one({"$or": [{"_id": str(listing.get("medicine_id"))}, {"id": str(listing.get("medicine_id"))}]})
+        if doc:
+            medicine = doc
+
+    donor = listing.get("donor") or {}
+    if not donor and db is not None and listing.get("donor_id"):
+        doc = db["users"].find_one({"$or": [{"_id": str(listing.get("donor_id"))}, {"id": str(listing.get("donor_id"))}]})
+        if doc:
+            donor = doc
 
     status_val = claim.status if isinstance(claim.status, str) else getattr(claim.status, "value", str(claim.status))
     created_at_val = claim.created_at.isoformat() if hasattr(claim.created_at, "isoformat") else str(claim.created_at or "")
@@ -58,12 +67,20 @@ def claim_to_dict(claim: Claim, db: Optional[Database] = None) -> dict:
     recipient_status = recipient.get("verification_status", "PENDING")
     donor_type = donor.get("donor_type", "HOUSEHOLD")
 
+    med_name = medicine.get("name") or listing.get("medicine_name") or "Medicine"
+    generic_name = medicine.get("generic_name") or listing.get("generic_name") or ""
+    strength = medicine.get("strength") or listing.get("strength") or ""
+    category = medicine.get("category") or listing.get("category") or "General"
+    manufacturer = medicine.get("manufacturer") or listing.get("manufacturer") or ""
+    dosage_form = medicine.get("dosage_form") or listing.get("dosage_form") or "Tablet"
+    is_restricted = bool(medicine.get("is_restricted", False) or listing.get("is_restricted", False))
+
     result = {
         "id": str(claim.id),
         "listingId": str(claim.listing_id),
         "recipientId": str(claim.recipient_id),
         "requestedQuantity": claim.requested_quantity,
-        "availableQuantity": listing.get("quantity_available", 0),
+        "availableQuantity": listing.get("quantity_available", listing.get("quantity", 0)),
         "recipientOrganization": recipient_name,
         "recipientVerificationStatus": recipient_status,
         "donorType": donor_type,
@@ -74,19 +91,17 @@ def claim_to_dict(claim: Claim, db: Optional[Database] = None) -> dict:
         "confirmedAt": confirmed_at_val,
         "completedAt": completed_at_val,
         "cancelledAt": cancelled_at_val,
+        "medicine": {
+            "id": str(medicine.get("_id") or medicine.get("id") or listing.get("medicine_id") or ""),
+            "name": med_name,
+            "genericName": generic_name,
+            "strength": strength,
+            "category": category,
+            "manufacturer": manufacturer,
+            "dosageForm": dosage_form,
+            "isRestricted": is_restricted,
+        },
     }
-
-    if medicine:
-        result["medicine"] = {
-            "id": str(medicine.get("_id") or medicine.get("id", "")),
-            "name": medicine.get("name", "Medicine"),
-            "genericName": medicine.get("generic_name", ""),
-            "strength": medicine.get("strength", ""),
-            "category": medicine.get("category", "General"),
-            "manufacturer": medicine.get("manufacturer", ""),
-            "dosageForm": medicine.get("dosage_form", "Tablet"),
-            "isRestricted": bool(medicine.get("is_restricted", False)),
-        }
 
     if listing:
         result["listing"] = {

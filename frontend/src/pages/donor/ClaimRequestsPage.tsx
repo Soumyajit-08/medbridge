@@ -42,9 +42,9 @@ export function ClaimRequestsPage() {
             >
               <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                 <div>
-                  <h2 className="font-semibold text-text-primary">{claim.medicine.name}</h2>
+                  <h2 className="font-semibold text-text-primary">{claim.medicine?.name || 'Medicine'}</h2>
                   <p className="mt-1 text-sm text-text-secondary">
-                    {claim.recipientOrganization} · Qty {claim.requestedQuantity}
+                    {claim.recipientOrganization || 'Recipient'} · Qty {claim.requestedQuantity}
                   </p>
                   <p className="mt-1 text-xs text-text-secondary">
                     {formatRelativeTime(claim.createdAt)}

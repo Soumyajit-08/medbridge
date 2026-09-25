@@ -67,9 +67,9 @@ export function MedicineDetailsPage() {
                   className="mb-4 h-48 w-full rounded-lg object-cover"
                 />
               )}
-              <h2 className="text-xl font-bold text-text-primary">{listing.medicine.name}</h2>
+              <h2 className="text-xl font-bold text-text-primary">{listing.medicine?.name || 'Medicine'}</h2>
               <p className="mt-1 text-sm text-text-secondary">
-                {listing.medicine.genericName} · {listing.medicine.manufacturer}
+                {listing.medicine?.genericName || ''}{listing.medicine?.manufacturer ? ` · ${listing.medicine.manufacturer}` : ''}
               </p>
               <div className="mt-4">
                 <StatusBadge status={listing.status} />

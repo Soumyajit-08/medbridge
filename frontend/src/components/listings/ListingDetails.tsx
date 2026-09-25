@@ -25,7 +25,7 @@ export function ListingDetails({
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h2 className="text-2xl font-semibold text-text-primary">
-            {listing.medicine.name}
+            {listing.medicine?.name || 'Medicine'}
           </h2>
           <div className="mt-2 flex flex-wrap items-center gap-2">
             <ListingStatus status={listing.status} />
@@ -38,7 +38,7 @@ export function ListingDetails({
         <div className="overflow-hidden rounded-[var(--radius-card)] border border-border">
           <img
             src={listing.imageUrl}
-            alt={listing.medicine.name}
+            alt={listing.medicine?.name || 'Medicine'}
             className="max-h-64 w-full object-cover"
           />
         </div>

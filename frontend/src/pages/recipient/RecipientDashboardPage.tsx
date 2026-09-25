@@ -76,7 +76,7 @@ export function RecipientDashboardPage() {
               {activeClaims.data.slice(0, 5).map((claim) => (
                 <li key={claim.id} className="flex items-center justify-between py-3 first:pt-0">
                   <div>
-                    <p className="text-sm font-medium text-text-primary">{claim.medicine.name}</p>
+                    <p className="text-sm font-medium text-text-primary">{claim.medicine?.name || 'Medicine'}</p>
                     <p className="text-xs text-text-secondary">Qty {claim.requestedQuantity}</p>
                   </div>
                   <StatusBadge status={claim.status} />

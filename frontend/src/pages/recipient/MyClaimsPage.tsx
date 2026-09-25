@@ -30,7 +30,7 @@ export function MyClaimsPage() {
             >
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <h2 className="font-semibold text-text-primary">{claim.medicine.name}</h2>
+                  <h2 className="font-semibold text-text-primary">{claim.medicine?.name || 'Medicine'}</h2>
                   <p className="mt-1 text-sm text-text-secondary">
                     Qty {claim.requestedQuantity} · {formatRelativeTime(claim.createdAt)}
                   </p>

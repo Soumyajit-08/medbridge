@@ -37,7 +37,7 @@ export function ListingsPage() {
               {data?.data.map((listing) => (
                 <tr key={listing.id}>
                   <td className="px-4 py-3 font-medium text-text-primary">
-                    {listing.medicine.name}
+                    {listing.medicine?.name || 'Medicine'}
                   </td>
                   <td className="px-4 py-3 text-text-secondary">{listing.donorName}</td>
                   <td className="px-4 py-3 text-text-secondary">{listing.quantityAvailable}</td>

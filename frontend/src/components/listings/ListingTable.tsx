@@ -43,8 +43,8 @@ export function ListingTable({
           {listings.map((listing) => (
             <tr key={listing.id} className="hover:bg-background/50">
               <td className="px-4 py-3">
-                <p className="font-medium text-text-primary">{listing.medicine.name}</p>
-                <p className="text-xs text-text-secondary">{listing.medicine.genericName}</p>
+                <p className="font-medium text-text-primary">{listing.medicine?.name || 'Medicine'}</p>
+                <p className="text-xs text-text-secondary">{listing.medicine?.genericName || ''}</p>
               </td>
               <td className="px-4 py-3 text-text-primary">{listing.quantityAvailable}</td>
               <td className="px-4 py-3">

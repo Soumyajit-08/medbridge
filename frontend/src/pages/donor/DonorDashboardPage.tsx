@@ -134,10 +134,10 @@ export function DonorDashboardPage() {
                 {pendingClaims.data.slice(0, 5).map((claim) => (
                   <li key={claim.id} className="py-3 first:pt-0">
                     <p className="text-sm font-medium text-text-primary">
-                      {claim.medicine.name}
+                      {claim.medicine?.name || 'Medicine'}
                     </p>
                     <p className="text-xs text-text-secondary">
-                      {claim.recipientOrganization} · Qty {claim.requestedQuantity}
+                      {claim.recipientOrganization || 'Recipient'} · Qty {claim.requestedQuantity}
                     </p>
                   </li>
                 ))}
