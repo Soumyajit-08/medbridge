@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { listingService } from '@/services/listingService';
+import { useUIStore } from '@/store/uiStore';
 import type { ListingFilters, CreateListingPayload } from '@/types/listing';
 
 export function useListings(filters?: ListingFilters) {
@@ -26,23 +27,29 @@ export function useListing(id: string) {
 
 export function useCreateListing() {
   const queryClient = useQueryClient();
+  const { addToast } = useUIStore();
+
   return useMutation({
     mutationFn: ({ payload, image }: { payload: CreateListingPayload; image?: File }) =>
       listingService.createListing(payload, image),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['listings'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      addToast('success', 'Medicine listing published successfully!', 'Listing Created');
     },
   });
 }
 
 export function useDeleteListing() {
   const queryClient = useQueryClient();
+  const { addToast } = useUIStore();
+
   return useMutation({
     mutationFn: (id: string) => listingService.deleteListing(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['listings'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      addToast('success', 'Listing deleted successfully.', 'Listing Removed');
     },
   });
 }

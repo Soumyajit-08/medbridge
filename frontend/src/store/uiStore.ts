@@ -1,8 +1,9 @@
 import { create } from 'zustand';
 
-interface Toast {
+export interface Toast {
   id: string;
   type: 'success' | 'error' | 'info' | 'warning';
+  title?: string;
   message: string;
 }
 
@@ -17,7 +18,7 @@ interface UIState {
   setMobileSidebarOpen: (open: boolean) => void;
   toggleNotificationPanel: () => void;
   setNotificationPanelOpen: (open: boolean) => void;
-  addToast: (type: Toast['type'], message: string) => void;
+  addToast: (type: Toast['type'], message: string, title?: string) => void;
   removeToast: (id: string) => void;
 }
 
@@ -32,9 +33,9 @@ export const useUIStore = create<UIState>((set) => ({
   setMobileSidebarOpen: (mobileSidebarOpen) => set({ mobileSidebarOpen }),
   toggleNotificationPanel: () => set((s) => ({ notificationPanelOpen: !s.notificationPanelOpen })),
   setNotificationPanelOpen: (notificationPanelOpen) => set({ notificationPanelOpen }),
-  addToast: (type, message) =>
+  addToast: (type, message, title) =>
     set((s) => ({
-      toasts: [...s.toasts, { id: crypto.randomUUID(), type, message }],
+      toasts: [...s.toasts, { id: crypto.randomUUID(), type, message, title }],
     })),
   removeToast: (id) => set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })),
 }));

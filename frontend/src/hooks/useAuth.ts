@@ -3,6 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { authService } from '@/services/authService';
 import { useAuthStore } from '@/store/authStore';
+import { useUIStore } from '@/store/uiStore';
 import { getDashboardPath } from '@/utils/roleHelpers';
 import type { LoginCredentials, RegisterData } from '@/types/auth';
 
@@ -45,11 +46,13 @@ export function useAuth() {
   const { user, isAuthenticated, isLoading, setAuth, logout } = useAuthStore();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { addToast } = useUIStore();
 
   const loginMutation = useMutation({
     mutationFn: (credentials: LoginCredentials) => authService.login(credentials),
     onSuccess: ({ user, accessToken }) => {
       setAuth(user, accessToken);
+      addToast('success', `Welcome back, ${user.name}!`, 'Signed In');
       navigate(getDashboardPath(user.role));
     },
   });
@@ -58,6 +61,7 @@ export function useAuth() {
     mutationFn: (data: RegisterData) => authService.register(data),
     onSuccess: ({ user, accessToken }) => {
       setAuth(user, accessToken);
+      addToast('success', 'Your account has been successfully created.', 'Registration Complete');
       navigate(getDashboardPath(user.role));
     },
   });
@@ -67,6 +71,7 @@ export function useAuth() {
     onSettled: () => {
       logout();
       queryClient.clear();
+      addToast('info', 'You have been safely signed out.', 'Signed Out');
       navigate('/login');
     },
   });

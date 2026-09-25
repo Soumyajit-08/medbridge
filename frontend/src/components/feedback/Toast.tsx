@@ -22,7 +22,7 @@ export function ToastContainer() {
 
   return (
     <div
-      className="fixed bottom-4 right-4 z-[100] flex flex-col gap-2"
+      className="fixed bottom-4 right-4 z-[100] flex flex-col gap-2.5 max-w-[calc(100vw-2rem)] sm:max-w-md w-full sm:w-auto"
       aria-live="polite"
       aria-atomic="true"
     >
@@ -33,6 +33,7 @@ export function ToastContainer() {
             key={toast.id}
             id={toast.id}
             type={toast.type}
+            title={toast.title}
             message={toast.message}
             Icon={Icon}
             onClose={() => removeToast(toast.id)}
@@ -46,35 +47,48 @@ export function ToastContainer() {
 function ToastItem({
   id,
   type,
+  title,
   message,
   Icon,
   onClose,
 }: {
   id: string;
   type: keyof typeof icons;
+  title?: string;
   message: string;
   Icon: typeof CheckCircle2;
   onClose: () => void;
 }) {
   useEffect(() => {
-    const timer = setTimeout(onClose, 5000);
+    // Errors stay a bit longer (7s) so users can read the helpful explanation
+    const duration = type === 'error' ? 7000 : 5000;
+    const timer = setTimeout(onClose, duration);
     return () => clearTimeout(timer);
-  }, [id, onClose]);
+  }, [id, onClose, type]);
 
   return (
     <div
       className={cn(
-        'flex min-w-[280px] max-w-sm items-start gap-3 rounded-xl border p-4 shadow-lg bg-surface',
+        'flex min-w-[280px] sm:min-w-[340px] max-w-md items-start gap-3 rounded-2xl border p-4 shadow-xl bg-surface/95 backdrop-blur-md transition-all duration-200 animate-in fade-in slide-in-from-bottom-3',
         styles[type],
       )}
       role="alert"
     >
-      <Icon className="h-5 w-5 shrink-0" aria-hidden="true" />
-      <p className="flex-1 text-sm font-medium">{message}</p>
+      <Icon className="h-5 w-5 shrink-0 mt-0.5" aria-hidden="true" />
+      <div className="flex-1 min-w-0">
+        {title && (
+          <h4 className="text-sm font-bold text-text-primary mb-0.5 leading-tight">
+            {title}
+          </h4>
+        )}
+        <p className="text-xs sm:text-sm font-normal text-text-secondary leading-relaxed break-words">
+          {message}
+        </p>
+      </div>
       <button
         type="button"
         onClick={onClose}
-        className="shrink-0 rounded p-0.5 opacity-70 hover:opacity-100"
+        className="shrink-0 rounded-lg p-1 opacity-70 hover:opacity-100 hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer"
         aria-label="Dismiss notification"
       >
         <X className="h-4 w-4" />
