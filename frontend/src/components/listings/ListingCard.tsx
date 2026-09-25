@@ -8,6 +8,7 @@ import { UrgencyBadge } from '@/components/urgency/UrgencyBadge';
 import { ExpiryCountdown } from '@/components/urgency/ExpiryCountdown';
 import { DistanceBadge } from '@/components/location/DistanceBadge';
 import { formatDate } from '@/utils/formatDate';
+import { getMediaUrl } from '@/utils/mediaUrl';
 import { cn } from '@/utils/cn';
 
 const donorTypeConfig: Record<
@@ -29,6 +30,7 @@ export function ListingCard({ listing, className, linkTo }: ListingCardProps) {
   const donorConfig = donorTypeConfig[listing.donorType] ?? donorTypeConfig.HOUSEHOLD;
   const DonorIcon = donorConfig.icon;
   const href = linkTo ?? ROUTES.recipient.medicineDetails(listing.id);
+  const resolvedImageUrl = listing.imageUrl ? getMediaUrl(listing.imageUrl) : '';
 
   return (
     <Link
@@ -41,9 +43,9 @@ export function ListingCard({ listing, className, linkTo }: ListingCardProps) {
       )}
     >
       <div className="relative aspect-[16/9] overflow-hidden rounded-t-[var(--radius-card)] bg-background">
-        {listing.imageUrl ? (
+        {resolvedImageUrl ? (
           <img
-            src={listing.imageUrl}
+            src={resolvedImageUrl}
             alt={listing.medicine?.name ?? 'Medicine'}
             className="size-full object-cover transition-transform duration-500 ease-out group-hover:scale-108"
           />
