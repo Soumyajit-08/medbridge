@@ -61,8 +61,18 @@ import { AuditLogsPage } from '@/pages/admin/AuditLogsPage';
 
 // Error pages
 import { UnauthorizedPage } from '@/pages/errors/UnauthorizedPage';
-import { ForbiddenPage } from '@/pages/errors/ForbiddenPage';
 import { NotFoundPage } from '@/pages/errors/NotFoundPage';
+import { useAuthStore } from '@/store/authStore';
+import { getDashboardPath } from '@/utils/roleHelpers';
+import { Navigate } from 'react-router-dom';
+
+function ForbiddenRedirect() {
+  const { user, isAuthenticated } = useAuthStore();
+  if (isAuthenticated && user) {
+    return <Navigate to={getDashboardPath(user.role)} replace />;
+  }
+  return <Navigate to="/" replace />;
+}
 
 function AppRoutes() {
   useAuthInit();
@@ -86,7 +96,7 @@ function AppRoutes() {
         <Route path="reset-password" element={<ResetPasswordPage />} />
 
         <Route path="401" element={<UnauthorizedPage />} />
-        <Route path="403" element={<ForbiddenPage />} />
+        <Route path="403" element={<ForbiddenRedirect />} />
 
         <Route element={<ProtectedRoute />}>
           <Route path="donor" element={<DonorLayout />}>
