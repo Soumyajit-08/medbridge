@@ -32,8 +32,8 @@ def _set_refresh_cookie(response: Response, refresh_token: str) -> None:
         key=REFRESH_TOKEN_COOKIE_NAME,
         value=refresh_token,
         httponly=True,
-        secure=settings.is_production,
-        samesite="lax",
+        secure=True,
+        samesite="none",
         max_age=settings.JWT_REFRESH_EXPIRES_DAYS * 24 * 60 * 60,
         path="/",
     )
@@ -43,6 +43,8 @@ def _clear_refresh_cookie(response: Response) -> None:
     response.delete_cookie(
         key=REFRESH_TOKEN_COOKIE_NAME,
         path="/",
+        secure=True,
+        samesite="none",
     )
 
 

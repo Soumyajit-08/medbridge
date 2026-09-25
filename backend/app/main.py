@@ -101,10 +101,10 @@ Obtain a token by calling `POST /api/v1/auth/login`.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins_list,  # e.g., ["http://localhost:5173", "http://localhost:5174"]
-    allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$|^https?://.*\.vercel\.app$|^https?://.*\.netlify\.app$",
+    allow_origin_regex=r"^https?://.*$",
     allow_credentials=True,               # Required for cookies (refresh tokens)
-    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allow_headers=["*"],                  # Allow all headers including Authorization
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 
