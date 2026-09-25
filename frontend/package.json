@@ -48,7 +48,7 @@
   "optionalDependencies": {
     "@rolldown/binding-linux-x64-gnu": "*",
     "@rollup/rollup-linux-x64-gnu": "*",
-    "optionalDependencies": "*"
+    "lightningcss-linux-x64-gnu": "*"
   },
   "msw": {
     "workerDirectory": ["public"]
