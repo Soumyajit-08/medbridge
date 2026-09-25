@@ -29,20 +29,9 @@ import type { Claim } from '@/types/claim';
 const getRecipientDetails = (claim: any) => {
   const r = claim?.recipient || {};
   const repName = r.name || claim?.recipientName || 'Authorized Representative';
-  let email = r.email || r.emailAddress || claim?.recipientEmail || claim?.email || '';
-  let phone = r.phone || r.phoneNumber || r.mobile || claim?.recipientPhone || claim?.phone || '';
+  const email = r.email || r.emailAddress || claim?.recipientEmail || claim?.email || '';
+  const phone = r.phone || r.phoneNumber || r.mobile || claim?.recipientPhone || claim?.phone || '';
 
-  const lower = `${repName} ${claim?.recipientOrganization || r.organizationName || ''}`.toLowerCase();
-  if (!email) {
-    if (lower.includes('soumyajit')) email = 'soumyajitnag2027@gmail.com';
-    else if (lower.includes('susmita')) email = 'susmitadutta@gmail.com';
-    else email = 'recipient.coordinator@medbridge.org';
-  }
-  if (!phone) {
-    if (lower.includes('soumyajit')) phone = '+918250597771';
-    else if (lower.includes('susmita')) phone = '+919876543210';
-    else phone = '+919876543210';
-  }
   return { repName, email, phone };
 };
 

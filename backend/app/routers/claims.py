@@ -195,23 +195,6 @@ def claim_to_dict(claim: Claim, db: Optional[Database] = None) -> dict:
                 if not recipient_phone_val:
                     recipient_phone_val = user_by_org.get("phone") or user_by_org.get("mobile") or user_by_org.get("phone_number") or ""
 
-    rep_combined = f"{recipient_name_val} {recipient_org_val}".lower()
-    if not recipient_email_val:
-        if "soumyajit" in rep_combined:
-            recipient_email_val = "soumyajitnag2027@gmail.com"
-        elif "susmita" in rep_combined:
-            recipient_email_val = "susmitadutta@gmail.com"
-        else:
-            recipient_email_val = "recipient.coordinator@medbridge.org"
-
-    if not recipient_phone_val:
-        if "soumyajit" in rep_combined:
-            recipient_phone_val = "+918250597771"
-        elif "susmita" in rep_combined:
-            recipient_phone_val = "+919876543210"
-        else:
-            recipient_phone_val = "+919876543210"
-
     recipient_addr_val = recipient_doc.get("address") or ""
     recipient_city_val = recipient_doc.get("city") or ""
     recipient_state_val = recipient_doc.get("state") or ""
