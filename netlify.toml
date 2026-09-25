@@ -1,6 +1,6 @@
 [build]
   base = "frontend"
-  command = "npm i --save-optional @rolldown/binding-linux-x64-gnu lightningcss-linux-x64-gnu && npm run build"
+  command = "npm i --save-optional @rolldown/binding-linux-x64-gnu lightningcss-linux-x64-gnu @tailwindcss/oxide-linux-x64-gnu && npm run build"
   publish = "dist"
 
 [build.environment]
