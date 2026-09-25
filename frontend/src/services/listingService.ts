@@ -38,6 +38,15 @@ export const listingService = {
     return data;
   },
 
+  async uploadImage(id: string, image: File): Promise<Listing> {
+    const formData = new FormData();
+    formData.append('image', image);
+    const { data } = await api.post<Listing>(`/listings/${id}/image`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return data;
+  },
+
   async deleteListing(id: string): Promise<void> {
     await api.delete(`/listings/${id}`);
   },

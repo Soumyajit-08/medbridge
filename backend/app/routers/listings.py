@@ -150,13 +150,21 @@ def listing_to_dict(listing: Listing, db: Optional[Database] = None) -> dict:
     return result
 
 
+import base64
+
 def save_upload(file: UploadFile, listing_id: str) -> str:
     ext = Path(file.filename).suffix.lower() if file.filename else ".jpg"
     filename = f"{listing_id}{ext}"
     file_path = UPLOAD_DIR / filename
-    with open(file_path, "wb") as f:
-        shutil.copyfileobj(file.file, f)
-    return f"/uploads/listings/{filename}"
+    try:
+        content = file.file.read()
+        with open(file_path, "wb") as f:
+            f.write(content)
+        mime_type = file.content_type or ("image/png" if ext == ".png" else "image/jpeg")
+        b64_str = base64.b64encode(content).decode("utf-8")
+        return f"data:{mime_type};base64,{b64_str}"
+    except Exception:
+        return f"/uploads/listings/{filename}"
 
 
 @router.get("", summary="Browse listings")
@@ -381,6 +389,32 @@ def update_listing(
         resource_type="Listing",
         resource_id=lid,
     )
+
+    return listing_to_dict(Listing.from_doc(doc), db)
+
+
+@router.post("/{listing_id}/image", summary="Upload or update listing image (donor)")
+def upload_listing_image(
+    listing_id: str,
+    image: UploadFile = File(...),
+    db: Database = Depends(get_db),
+    current_user: User = Depends(require_donor),
+):
+    lid = str(listing_id)
+    doc = db["listings"].find_one({"$or": [{"_id": lid}, {"id": lid}]})
+    if not doc:
+        raise ResourceNotFoundError("Listing")
+
+    if str(doc.get("donor_id")) != str(current_user.id):
+        raise AuthorizationError("You can only edit your own listings")
+
+    image_url = save_upload(image, lid)
+    db["listings"].update_one(
+        {"$or": [{"_id": lid}, {"id": lid}]},
+        {"$set": {"image_url": image_url, "imageUrl": image_url}}
+    )
+    doc["image_url"] = image_url
+    doc["imageUrl"] = image_url
 
     return listing_to_dict(Listing.from_doc(doc), db)
 

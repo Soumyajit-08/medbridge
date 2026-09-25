@@ -155,17 +155,56 @@ export function CreateListingPage() {
           <Input label="Postal code" error={errors.postalCode?.message} {...register('postalCode')} />
         </div>
 
-        <div className="space-y-1.5">
-          <label htmlFor="image" className="block text-sm font-medium text-text-primary">
-            Listing image (optional)
+        <div className="space-y-2">
+          <label className="block text-sm font-semibold text-text-primary">
+            Medicine Packaging Image (optional)
           </label>
-          <input
-            id="image"
-            type="file"
-            accept="image/*"
-            onChange={(e) => setImage(e.target.files?.[0])}
-            className="text-sm text-text-secondary"
-          />
+          {image ? (
+            <div className="relative overflow-hidden rounded-xl border border-primary/30 bg-background p-3">
+              <div className="flex items-center gap-4">
+                <img
+                  src={URL.createObjectURL(image)}
+                  alt="Medicine packaging preview"
+                  className="size-20 rounded-lg object-cover border border-border shadow-xs"
+                />
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-semibold text-text-primary truncate">{image.name}</p>
+                  <p className="text-[11px] text-text-muted mt-0.5">
+                    {(image.size / (1024 * 1024)).toFixed(2)} MB · Ready to upload
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setImage(undefined)}
+                    className="mt-2 text-xs font-semibold text-rose-500 hover:underline cursor-pointer"
+                  >
+                    Remove photo
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <label
+              htmlFor="image"
+              className="flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-border bg-background/50 p-6 text-center cursor-pointer transition-colors hover:border-primary/50 hover:bg-primary/[0.02]"
+            >
+              <div className="flex size-10 items-center justify-center rounded-xl bg-primary/10 text-primary mb-2">
+                <svg className="size-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+              </div>
+              <span className="text-xs font-semibold text-text-primary">
+                Click to upload medicine photo or drag and drop
+              </span>
+              <span className="text-[11px] text-text-muted mt-1">PNG, JPG, WebP up to 10MB</span>
+              <input
+                id="image"
+                type="file"
+                accept="image/*"
+                onChange={(e) => setImage(e.target.files?.[0])}
+                className="hidden"
+              />
+            </label>
+          )}
         </div>
 
         <label className="flex items-start gap-2 text-sm text-text-secondary">
