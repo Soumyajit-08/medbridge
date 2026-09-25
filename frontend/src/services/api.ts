@@ -130,7 +130,11 @@ api.interceptors.response.use(
     const { title, message } = extractErrorDetails(error);
 
     // Dispatch a visible toast notification explaining the failure reason
-    const isSilentCheck = url.endsWith('/auth/me') || url.endsWith('/auth/refresh');
+    const isSilentCheck =
+      url.endsWith('/auth/me') ||
+      url.endsWith('/auth/refresh') ||
+      url.includes('/auth/profile') ||
+      url.includes('/profile');
     if (!isSilentCheck) {
       useUIStore.getState().addToast('error', message, title);
     }
