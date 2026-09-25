@@ -4,10 +4,12 @@ app/routers/claims.py
 Claim endpoints for MongoDB.
 """
 
+import re
 import uuid
 from datetime import datetime, timezone
 from typing import Optional
 
+from bson import ObjectId
 from fastapi import APIRouter, Depends, Query
 from pymongo.database import Database
 
@@ -29,32 +31,73 @@ from app.repositories.audit_repository import audit_repository
 router = APIRouter(prefix="/claims", tags=["Claims"])
 
 
+def _fetch_user_doc(db: Database, uid_or_val: Optional[str], fallback_name: Optional[str] = None, fallback_email: Optional[str] = None) -> dict:
+    if not db or not uid_or_val:
+        return {}
+    uid_str = str(uid_or_val).strip()
+    or_conds = [{"_id": uid_str}, {"id": uid_str}]
+    try:
+        from bson import ObjectId
+        if ObjectId.is_valid(uid_str):
+            or_conds.append({"_id": ObjectId(uid_str)})
+    except Exception:
+        pass
+    doc = db["users"].find_one({"$or": or_conds})
+    if not doc and fallback_email:
+        doc = db["users"].find_one({"email": {"$regex": f"^{re.escape(fallback_email.strip())}$", "$options": "i"}})
+    if not doc and fallback_name:
+        doc = db["users"].find_one({"name": {"$regex": f"^{re.escape(fallback_name.strip())}$", "$options": "i"}})
+    return doc or {}
+
+
 def claim_to_dict(claim: Claim, db: Optional[Database] = None) -> dict:
     listing = claim.listing or {}
     recipient = claim.recipient or {}
 
     if db is not None:
         if claim.listing_id:
-            doc = db["listings"].find_one({"$or": [{"_id": str(claim.listing_id)}, {"id": str(claim.listing_id)}]})
+            lid_str = str(claim.listing_id).strip()
+            l_conds = [{"_id": lid_str}, {"id": lid_str}]
+            try:
+                from bson import ObjectId
+                if ObjectId.is_valid(lid_str):
+                    l_conds.append({"_id": ObjectId(lid_str)})
+            except Exception:
+                pass
+            doc = db["listings"].find_one({"$or": l_conds})
             if doc:
                 listing = {**listing, **doc}
+
         if claim.recipient_id:
-            doc = db["users"].find_one({"$or": [{"_id": str(claim.recipient_id)}, {"id": str(claim.recipient_id)}]})
+            doc = _fetch_user_doc(db, str(claim.recipient_id))
             if doc:
                 recipient = {**recipient, **doc}
 
     medicine = listing.get("medicine") or {}
     if not medicine and db is not None and listing.get("medicine_id"):
-        doc = db["medicines"].find_one({"$or": [{"_id": str(listing.get("medicine_id"))}, {"id": str(listing.get("medicine_id"))}]})
+        mid_str = str(listing.get("medicine_id")).strip()
+        m_conds = [{"_id": mid_str}, {"id": mid_str}]
+        try:
+            from bson import ObjectId
+            if ObjectId.is_valid(mid_str):
+                m_conds.append({"_id": ObjectId(mid_str)})
+        except Exception:
+            pass
+        doc = db["medicines"].find_one({"$or": m_conds})
         if doc:
             medicine = doc
 
     donor = listing.get("donor") or {}
     donor_id = listing.get("donor_id") or donor.get("_id") or donor.get("id")
-    if db is not None and donor_id:
-        doc = db["users"].find_one({"$or": [{"_id": str(donor_id)}, {"id": str(donor_id)}]})
-        if doc:
-            donor = {**donor, **doc}
+    if db is not None:
+        fetched_donor = _fetch_user_doc(
+            db,
+            donor_id,
+            fallback_name=donor.get("name") or listing.get("donor_name"),
+            fallback_email=donor.get("email") or listing.get("donor_email"),
+        )
+        if fetched_donor:
+            donor = {**donor, **fetched_donor}
 
     status_val = claim.status if isinstance(claim.status, str) else getattr(claim.status, "value", str(claim.status))
     created_at_val = claim.created_at.isoformat() if hasattr(claim.created_at, "isoformat") else str(claim.created_at or "")
@@ -81,8 +124,8 @@ def claim_to_dict(claim: Claim, db: Optional[Database] = None) -> dict:
 
     donor_id_val = str(donor_doc.get("_id") or donor_doc.get("id") or listing.get("donor_id") or "")
     donor_name_val = donor_doc.get("name") or listing.get("donor_name") or "Donor"
-    donor_email_val = donor_doc.get("email") or listing.get("donor_email") or ""
-    donor_phone_val = donor_doc.get("phone") or listing.get("donor_phone") or ""
+    donor_email_val = donor_doc.get("email") or donor_doc.get("email_address") or donor_doc.get("mail") or listing.get("donor_email") or ""
+    donor_phone_val = donor_doc.get("phone") or donor_doc.get("phone_number") or donor_doc.get("mobile") or donor_doc.get("contact") or donor_doc.get("phoneNumber") or listing.get("donor_phone") or listing.get("phone") or ""
     donor_type_val = donor_doc.get("donor_type") or listing.get("donor_type") or donor_type or "HOUSEHOLD"
     donor_addr_val = donor_doc.get("address") or listing.get("pickup_address") or ""
     donor_city_val = donor_doc.get("city") or listing.get("city") or ""
@@ -93,8 +136,8 @@ def claim_to_dict(claim: Claim, db: Optional[Database] = None) -> dict:
     recipient_name_val = recipient_doc.get("name") or "Recipient User"
     recipient_org_val = recipient_doc.get("organization_name") or recipient_name or "Recipient Organization"
     recipient_org_type_val = recipient_doc.get("organization_type") or "NGO"
-    recipient_email_val = recipient_doc.get("email") or ""
-    recipient_phone_val = recipient_doc.get("phone") or ""
+    recipient_email_val = recipient_doc.get("email") or recipient_doc.get("email_address") or recipient_doc.get("mail") or ""
+    recipient_phone_val = recipient_doc.get("phone") or recipient_doc.get("phone_number") or recipient_doc.get("mobile") or recipient_doc.get("contact") or recipient_doc.get("phoneNumber") or ""
     recipient_addr_val = recipient_doc.get("address") or ""
     recipient_city_val = recipient_doc.get("city") or ""
     recipient_state_val = recipient_doc.get("state") or ""

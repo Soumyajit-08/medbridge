@@ -58,6 +58,9 @@ export function MyClaimsPage() {
           {data?.data.map((claim) => {
             const isConfirmed = claim.status === 'CONFIRMED' || claim.status === 'COMPLETED';
             const donor = claim.donor || claim.listing?.donor;
+            const donorName = donor?.name || (claim as any).donorName || (claim as any).listing?.donorName || 'Verified Donor';
+            const donorEmail = donor?.email || (claim as any).donorEmail || (claim as any).listing?.donorEmail || '';
+            const donorPhone = donor?.phone || (claim as any).donorPhone || (claim as any).listing?.donorPhone || '';
             const pickupAddress =
               claim.pickupAddress ||
               claim.listing?.pickupAddress ||
@@ -130,7 +133,7 @@ export function MyClaimsPage() {
                     <button
                       type="button"
                       onClick={() => setSelectedClaim(claim)}
-                      className="rounded-lg border border-border bg-background px-3 py-1.5 text-xs font-medium text-text-primary transition-colors hover:bg-surface hover:text-primary"
+                      className="rounded-lg border border-border bg-background px-3 py-1.5 text-xs font-medium text-text-primary transition-colors hover:bg-surface hover:text-primary cursor-pointer"
                     >
                       View details
                     </button>
@@ -139,14 +142,14 @@ export function MyClaimsPage() {
 
                 {/* Confirmed Donor Profile & Direct Contact Box */}
                 {isConfirmed && (
-                  <div className="mt-4 rounded-lg border border-emerald-500/20 bg-emerald-500/[0.04] p-4">
+                  <div className="mt-4 rounded-xl border border-emerald-500/25 bg-emerald-500/[0.04] p-4 shadow-2xs">
                     <div className="flex items-center justify-between gap-2 border-b border-emerald-500/10 pb-2.5">
                       <div className="flex items-center gap-2">
-                        <ShieldCheck className="size-4 text-emerald-500" />
-                        <span className="text-xs font-semibold text-text-primary">
+                        <ShieldCheck className="size-4 text-emerald-500 shrink-0" />
+                        <span className="text-xs font-bold text-text-primary">
                           Donor Profile & Contact Details
                         </span>
-                        <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-500">
+                        <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
                           Handover Unlocked
                         </span>
                       </div>
@@ -157,27 +160,31 @@ export function MyClaimsPage() {
                       )}
                     </div>
 
-                    <div className="mt-3 grid gap-3.5 sm:grid-cols-2">
-                      <div className="space-y-1.5 text-xs">
-                        <p className="font-semibold text-text-primary flex items-center gap-1.5 text-sm">
-                          <User className="size-4 text-primary" /> {donor?.name || 'Verified Donor'}
+                    <div className="mt-3.5 grid gap-4 sm:grid-cols-2">
+                      <div className="space-y-2 text-xs">
+                        <p className="font-bold text-text-primary flex items-center gap-1.5 text-sm">
+                          <User className="size-4 text-primary shrink-0" /> {donorName}
                         </p>
                         
-                        {donor?.email && (
-                          <p className="text-text-secondary flex items-center gap-1.5">
-                            <Mail className="size-3.5 text-text-muted shrink-0" />
-                            <span className="text-text-muted">Email:</span>
-                            <a href={`mailto:${donor.email}`} className="font-medium text-primary hover:underline">{donor.email}</a>
-                          </p>
-                        )}
+                        <p className="text-text-secondary flex items-center gap-1.5">
+                          <Mail className="size-3.5 text-text-muted shrink-0" />
+                          <span className="text-text-muted">Email:</span>
+                          {donorEmail ? (
+                            <a href={`mailto:${donorEmail}`} className="font-semibold text-primary hover:underline">{donorEmail}</a>
+                          ) : (
+                            <span className="text-text-muted italic">Registered via Platform</span>
+                          )}
+                        </p>
 
-                        {donor?.phone && (
-                          <p className="text-text-secondary flex items-center gap-1.5">
-                            <Phone className="size-3.5 text-emerald-500 shrink-0" />
-                            <span className="text-text-muted">Mobile / Phone:</span>
-                            <a href={`tel:${donor.phone}`} className="font-semibold text-emerald-500 hover:underline">{donor.phone}</a>
-                          </p>
-                        )}
+                        <p className="text-text-secondary flex items-center gap-1.5">
+                          <Phone className="size-3.5 text-emerald-500 shrink-0" />
+                          <span className="text-text-muted">Phone / Mobile:</span>
+                          {donorPhone ? (
+                            <a href={`tel:${donorPhone}`} className="font-bold text-emerald-600 dark:text-emerald-400 hover:underline">{donorPhone}</a>
+                          ) : (
+                            <span className="text-text-muted italic">Available via email</span>
+                          )}
+                        </p>
 
                         {fullLocation && (
                           <p className="text-text-secondary flex items-start gap-1.5 pt-0.5">
@@ -189,20 +196,20 @@ export function MyClaimsPage() {
 
                       {/* Contact Action Buttons */}
                       <div className="flex flex-wrap items-center gap-2 sm:justify-end sm:self-center">
-                        {donor?.email && (
+                        {donorEmail && (
                           <a
-                            href={`mailto:${donor.email}?subject=MedBridge Medicine Pickup: ${claim.medicine?.name || 'Medicine'}`}
-                            className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-xs font-semibold text-white shadow-xs transition-all hover:opacity-90 active:scale-95"
+                            href={`mailto:${donorEmail}?subject=MedBridge Medicine Pickup: ${claim.medicine?.name || 'Medicine'}`}
+                            className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3.5 py-2 text-xs font-semibold text-white shadow-xs transition-all hover:opacity-90 active:scale-95 cursor-pointer"
                           >
                             <Mail className="size-3.5" /> Send Email
                           </a>
                         )}
-                        {donor?.phone && (
+                        {donorPhone && (
                           <a
-                            href={`tel:${donor.phone}`}
-                            className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-500 transition-all hover:bg-emerald-500/20 active:scale-95"
+                            href={`tel:${donorPhone}`}
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3.5 py-2 text-xs font-semibold text-emerald-600 dark:text-emerald-400 transition-all hover:bg-emerald-500/20 active:scale-95 cursor-pointer"
                           >
-                            <Phone className="size-3.5" /> Call ({donor.phone})
+                            <Phone className="size-3.5" /> Call ({donorPhone})
                           </a>
                         )}
                       </div>
@@ -341,35 +348,55 @@ export function MyClaimsPage() {
                     </div>
 
                     <div className="space-y-2 pt-2 border-t border-emerald-500/10 text-xs">
-                      {(selectedClaim.donor?.email || selectedClaim.listing?.donor?.email) && (
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="text-text-secondary flex items-center gap-1.5">
-                            <Mail className="size-3.5 text-text-muted" />
-                            {selectedClaim.donor?.email || selectedClaim.listing?.donor?.email}
-                          </span>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-text-secondary flex items-center gap-1.5">
+                          <Mail className="size-3.5 text-text-muted shrink-0" />
+                          <span className="text-text-muted">Email:</span>
+                          {(selectedClaim.donor?.email || selectedClaim.listing?.donor?.email || (selectedClaim as any).donorEmail) ? (
+                            <a
+                              href={`mailto:${selectedClaim.donor?.email || selectedClaim.listing?.donor?.email || (selectedClaim as any).donorEmail}`}
+                              className="font-semibold text-primary hover:underline"
+                            >
+                              {selectedClaim.donor?.email || selectedClaim.listing?.donor?.email || (selectedClaim as any).donorEmail}
+                            </a>
+                          ) : (
+                            <span className="text-text-muted italic">Registered User</span>
+                          )}
+                        </span>
+                        {(selectedClaim.donor?.email || selectedClaim.listing?.donor?.email || (selectedClaim as any).donorEmail) && (
                           <a
-                            href={`mailto:${selectedClaim.donor?.email || selectedClaim.listing?.donor?.email}?subject=MedBridge Medicine Pickup`}
-                            className="text-primary hover:underline font-medium"
+                            href={`mailto:${selectedClaim.donor?.email || selectedClaim.listing?.donor?.email || (selectedClaim as any).donorEmail}?subject=MedBridge Medicine Pickup`}
+                            className="rounded bg-primary/10 px-2 py-1 text-[11px] font-semibold text-primary hover:bg-primary/20 transition-colors"
                           >
                             Send Email
                           </a>
-                        </div>
-                      )}
+                        )}
+                      </div>
 
-                      {(selectedClaim.donor?.phone || selectedClaim.listing?.donor?.phone) && (
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="text-text-secondary flex items-center gap-1.5">
-                            <Phone className="size-3.5 text-text-muted" />
-                            {selectedClaim.donor?.phone || selectedClaim.listing?.donor?.phone}
-                          </span>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-text-secondary flex items-center gap-1.5">
+                          <Phone className="size-3.5 text-emerald-500 shrink-0" />
+                          <span className="text-text-muted">Phone:</span>
+                          {(selectedClaim.donor?.phone || selectedClaim.listing?.donor?.phone || (selectedClaim as any).donorPhone) ? (
+                            <a
+                              href={`tel:${selectedClaim.donor?.phone || selectedClaim.listing?.donor?.phone || (selectedClaim as any).donorPhone}`}
+                              className="font-bold text-emerald-600 dark:text-emerald-400 hover:underline"
+                            >
+                              {selectedClaim.donor?.phone || selectedClaim.listing?.donor?.phone || (selectedClaim as any).donorPhone}
+                            </a>
+                          ) : (
+                            <span className="text-text-muted italic">Contact via email</span>
+                          )}
+                        </span>
+                        {(selectedClaim.donor?.phone || selectedClaim.listing?.donor?.phone || (selectedClaim as any).donorPhone) && (
                           <a
-                            href={`tel:${selectedClaim.donor?.phone || selectedClaim.listing?.donor?.phone}`}
-                            className="text-emerald-500 hover:underline font-medium"
+                            href={`tel:${selectedClaim.donor?.phone || selectedClaim.listing?.donor?.phone || (selectedClaim as any).donorPhone}`}
+                            className="rounded bg-emerald-500/10 px-2 py-1 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 transition-colors"
                           >
                             Call Now
                           </a>
-                        </div>
-                      )}
+                        )}
+                      </div>
 
                       {(selectedClaim.pickupAddress || selectedClaim.listing?.pickupAddress || selectedClaim.donor?.address) && (
                         <div className="pt-2 border-t border-emerald-500/10">
