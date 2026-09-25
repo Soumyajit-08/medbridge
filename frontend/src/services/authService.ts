@@ -38,4 +38,9 @@ export const authService = {
     const { data } = await api.get<AuthUser>('/me');
     return data;
   },
+
+  async updateProfile(payload: Partial<AuthUser>): Promise<AuthUser> {
+    const { data } = await api.patch<AuthUser>('/auth/profile', payload);
+    return data;
+  },
 };

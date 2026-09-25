@@ -63,5 +63,6 @@ export const ROUTES = {
     users: '/admin/users',
     listings: '/admin/listings',
     auditLogs: '/admin/audit-logs',
+    profile: '/admin/profile',
   },
 } as const;

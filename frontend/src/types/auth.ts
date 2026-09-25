@@ -15,6 +15,22 @@ export interface AuthUser {
   organizationType?: OrganizationType;
   verificationStatus?: 'PENDING' | 'APPROVED' | 'REJECTED';
   avatarUrl?: string;
+  address?: string;
+  city?: string;
+  state?: string;
+  pincode?: string;
+}
+
+export interface UpdateProfileData {
+  name?: string;
+  phone?: string;
+  donorType?: DonorType;
+  organizationName?: string;
+  organizationType?: OrganizationType;
+  address?: string;
+  city?: string;
+  state?: string;
+  pincode?: string;
 }
 
 export interface AuthTokens {

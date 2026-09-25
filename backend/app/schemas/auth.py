@@ -65,6 +65,11 @@ class AuthUserResponse(BaseModel):
     verification_status: Optional[VerificationStatus] = None
     avatar_url: Optional[str] = None
 
+    address: Optional[str] = None
+    city: Optional[str] = None
+    state: Optional[str] = None
+    pincode: Optional[str] = None
+
     model_config = {
         "from_attributes": True,  # allows creating from model / dict (model_validate(user))
         # Map snake_case DB field names to camelCase for the frontend
@@ -87,26 +92,65 @@ class AuthUserResponse(BaseModel):
             organization_type=user.organization_type,
             verification_status=user.verification_status,
             avatar_url=user.avatar_url,
+            address=getattr(user, "address", None) or (user.get("address") if isinstance(user, dict) else None),
+            city=getattr(user, "city", None) or (user.get("city") if isinstance(user, dict) else None),
+            state=getattr(user, "state", None) or (user.get("state") if isinstance(user, dict) else None),
+            pincode=getattr(user, "pincode", None) or (user.get("pincode") if isinstance(user, dict) else None),
         )
 
     def model_dump_camel(self) -> dict:
         """Return dict with camelCase keys matching the frontend TypeScript interface."""
         data = self.model_dump()
+        role_val = data["role"].value if hasattr(data["role"], "value") else str(data["role"])
+        donor_type_val = data["donor_type"].value if hasattr(data["donor_type"], "value") and data["donor_type"] else (str(data["donor_type"]) if data["donor_type"] else None)
+        org_type_val = data["organization_type"].value if hasattr(data["organization_type"], "value") and data["organization_type"] else (str(data["organization_type"]) if data["organization_type"] else None)
+        ver_val = data["verification_status"].value if hasattr(data["verification_status"], "value") and data["verification_status"] else (str(data["verification_status"]) if data["verification_status"] else None)
+
         return {
             "id": data["id"],
             "name": data["name"],
             "email": data["email"],
             "phone": data["phone"],
-            "role": data["role"],
-            "donorType": data["donor_type"],
+            "role": role_val,
+            "donorType": donor_type_val,
             "organizationName": data["organization_name"],
-            "organizationType": data["organization_type"],
-            "verificationStatus": data["verification_status"],
+            "organizationType": org_type_val,
+            "verificationStatus": ver_val,
             "avatarUrl": data["avatar_url"],
+            "address": data.get("address"),
+            "city": data.get("city"),
+            "state": data.get("state"),
+            "pincode": data.get("pincode"),
         }
 
 
 # ── Request Schemas ────────────────────────────────────────────────────────────
+
+class UpdateProfileRequest(BaseModel):
+    """
+    PATCH /api/v1/auth/profile body.
+    Supports updating editable profile fields for any role.
+    """
+    name: Optional[str] = Field(None, min_length=2, max_length=200)
+    phone: Optional[str] = Field(None, min_length=5, max_length=20)
+    donor_type: Optional[DonorType] = Field(
+        default=None,
+        validation_alias=AliasChoices("donor_type", "donorType"),
+    )
+    organization_name: Optional[str] = Field(
+        default=None,
+        max_length=300,
+        validation_alias=AliasChoices("organization_name", "organizationName"),
+    )
+    organization_type: Optional[OrganizationType] = Field(
+        default=None,
+        validation_alias=AliasChoices("organization_type", "organizationType"),
+    )
+    address: Optional[str] = None
+    city: Optional[str] = None
+    state: Optional[str] = None
+    pincode: Optional[str] = None
+
 
 class LoginRequest(BaseModel):
     """

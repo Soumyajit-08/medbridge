@@ -54,6 +54,7 @@ export function getSidebarNavItems(role: UserRole): SidebarNavItem[] {
         { label: 'Users', href: ROUTES.admin.users, icon: Users },
         { label: 'Listings', href: ROUTES.admin.listings, icon: Package },
         { label: 'Audit Logs', href: ROUTES.admin.auditLogs, icon: ScrollText },
+        { label: 'Profile', href: ROUTES.admin.profile, icon: User },
       ];
     default:
       return [];

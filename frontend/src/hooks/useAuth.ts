@@ -76,6 +76,21 @@ export function useAuth() {
     },
   });
 
+  const updateProfileMutation = useMutation({
+    mutationFn: (data: Partial<import('@/types/auth').AuthUser>) => authService.updateProfile(data),
+    onSuccess: (updatedUser) => {
+      useAuthStore.getState().setUser(updatedUser);
+      queryClient.invalidateQueries({ queryKey: ['me'] });
+      queryClient.invalidateQueries({ queryKey: ['claims'] });
+      queryClient.invalidateQueries({ queryKey: ['listings'] });
+      addToast('success', 'Your profile details have been updated successfully.', 'Profile Updated');
+    },
+    onError: (err: any) => {
+      const msg = err?.response?.data?.message || err?.message || 'Failed to update profile';
+      addToast('error', msg, 'Update Failed');
+    },
+  });
+
   return {
     user,
     isAuthenticated,
@@ -83,9 +98,12 @@ export function useAuth() {
     login: loginMutation.mutateAsync,
     register: registerMutation.mutateAsync,
     logout: logoutMutation.mutate,
+    updateProfile: updateProfileMutation.mutateAsync,
     isLoggingIn: loginMutation.isPending,
     isRegistering: registerMutation.isPending,
+    isUpdatingProfile: updateProfileMutation.isPending,
     loginError: loginMutation.error,
     registerError: registerMutation.error,
+    updateProfileError: updateProfileMutation.error,
   };
 }
