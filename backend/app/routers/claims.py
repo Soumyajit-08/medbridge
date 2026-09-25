@@ -410,6 +410,8 @@ def create_claim(
     recipient_doc = {
         "id": str(current_user.id),
         "name": current_user.name,
+        "email": current_user.email,
+        "phone": current_user.phone,
         "organization_name": current_user.organization_name,
         "verification_status": v_status,
     }
