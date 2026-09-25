@@ -31,8 +31,8 @@ from app.repositories.audit_repository import audit_repository
 router = APIRouter(prefix="/claims", tags=["Claims"])
 
 
-def _fetch_user_doc(db: Database, uid_or_val: Optional[str] = None, fallback_name: Optional[str] = None, fallback_email: Optional[str] = None) -> dict:
-    if not db:
+def _fetch_user_doc(db: Optional[Database], uid_or_val: Optional[str] = None, fallback_name: Optional[str] = None, fallback_email: Optional[str] = None) -> dict:
+    if db is None:
         return {}
     doc = None
     if uid_or_val:

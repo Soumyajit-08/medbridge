@@ -180,17 +180,25 @@ export function ClaimRequestsPage() {
                           <p className="text-text-secondary flex items-center gap-1.5">
                             <Phone className="size-3.5 text-emerald-500 shrink-0" />
                             <span className="text-text-muted font-medium">Mobile / Phone:</span>
-                            <a href={`tel:${recipientDetails.phone}`} className="font-bold text-emerald-600 dark:text-emerald-400 hover:underline">
-                              {recipientDetails.phone}
-                            </a>
+                            {recipientDetails.phone ? (
+                              <a href={`tel:${recipientDetails.phone}`} className="font-bold text-emerald-600 dark:text-emerald-400 hover:underline">
+                                {recipientDetails.phone}
+                              </a>
+                            ) : (
+                              <span className="text-text-muted italic">Not specified</span>
+                            )}
                           </p>
 
                           <p className="text-text-secondary flex items-center gap-1.5">
                             <Mail className="size-3.5 text-primary shrink-0" />
                             <span className="text-text-muted font-medium">Email:</span>
-                            <a href={`mailto:${recipientDetails.email}?subject=MedBridge Handover`} className="font-medium text-primary hover:underline">
-                              {recipientDetails.email}
-                            </a>
+                            {recipientDetails.email ? (
+                              <a href={`mailto:${recipientDetails.email}?subject=MedBridge Handover`} className="font-medium text-primary hover:underline">
+                                {recipientDetails.email}
+                              </a>
+                            ) : (
+                              <span className="text-text-muted italic">Not specified</span>
+                            )}
                           </p>
 
                           {recipientLocation && (
@@ -203,18 +211,22 @@ export function ClaimRequestsPage() {
 
                         {/* Contact Channels */}
                         <div className="flex flex-wrap items-center gap-2 sm:justify-end sm:self-center">
-                          <a
-                            href={`mailto:${recipientDetails.email}?subject=MedBridge Handover: ${claim.medicine?.name || 'Medicine'}`}
-                            className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-xs font-semibold text-white shadow-xs transition-all hover:opacity-90 active:scale-95 cursor-pointer"
-                          >
-                            <Mail className="size-3.5" /> Send Email
-                          </a>
-                          <a
-                            href={`tel:${recipientDetails.phone}`}
-                            className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-600 dark:text-emerald-400 transition-all hover:bg-emerald-500/20 active:scale-95 cursor-pointer"
-                          >
-                            <Phone className="size-3.5 text-emerald-500" /> Call Now
-                          </a>
+                          {recipientDetails.email && (
+                            <a
+                              href={`mailto:${recipientDetails.email}?subject=MedBridge Handover: ${claim.medicine?.name || 'Medicine'}`}
+                              className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-xs font-semibold text-white shadow-xs transition-all hover:opacity-90 active:scale-95 cursor-pointer"
+                            >
+                              <Mail className="size-3.5" /> Send Email
+                            </a>
+                          )}
+                          {recipientDetails.phone && (
+                            <a
+                              href={`tel:${recipientDetails.phone}`}
+                              className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-600 dark:text-emerald-400 transition-all hover:bg-emerald-500/20 active:scale-95 cursor-pointer"
+                            >
+                              <Phone className="size-3.5 text-emerald-500" /> Call Now
+                            </a>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -346,19 +358,25 @@ export function ClaimRequestsPage() {
                           <span className="text-text-secondary flex items-center gap-1.5">
                             <Phone className="size-3.5 text-emerald-500 shrink-0" />
                             <span className="text-text-muted font-medium">Mobile / Phone:</span>
+                            {recipientDetails.phone ? (
+                              <a
+                                href={`tel:${recipientDetails.phone}`}
+                                className="font-bold text-emerald-600 dark:text-emerald-400 hover:underline"
+                              >
+                                {recipientDetails.phone}
+                              </a>
+                            ) : (
+                              <span className="text-text-muted italic">Not specified</span>
+                            )}
+                          </span>
+                          {recipientDetails.phone && (
                             <a
                               href={`tel:${recipientDetails.phone}`}
-                              className="font-bold text-emerald-600 dark:text-emerald-400 hover:underline"
+                              className="rounded-lg bg-emerald-500/10 px-2.5 py-1 text-xs font-bold text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 transition-colors cursor-pointer shrink-0"
                             >
-                              {recipientDetails.phone}
+                              Call
                             </a>
-                          </span>
-                          <a
-                            href={`tel:${recipientDetails.phone}`}
-                            className="rounded-lg bg-emerald-500/10 px-2.5 py-1 text-xs font-bold text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 transition-colors cursor-pointer shrink-0"
-                          >
-                            Call
-                          </a>
+                          )}
                         </div>
 
                         {/* Recipient Email Address */}
@@ -366,19 +384,25 @@ export function ClaimRequestsPage() {
                           <span className="text-text-secondary flex items-center gap-1.5 truncate">
                             <Mail className="size-3.5 text-primary shrink-0" />
                             <span className="text-text-muted font-medium">Email:</span>
+                            {recipientDetails.email ? (
+                              <a
+                                href={`mailto:${recipientDetails.email}?subject=MedBridge Handover: ${selectedClaim.medicine?.name || 'Medicine'}`}
+                                className="font-bold text-primary hover:underline truncate"
+                              >
+                                {recipientDetails.email}
+                              </a>
+                            ) : (
+                              <span className="text-text-muted italic">Not specified</span>
+                            )}
+                          </span>
+                          {recipientDetails.email && (
                             <a
                               href={`mailto:${recipientDetails.email}?subject=MedBridge Handover: ${selectedClaim.medicine?.name || 'Medicine'}`}
-                              className="font-bold text-primary hover:underline truncate"
+                              className="rounded-lg bg-primary/10 px-2.5 py-1 text-xs font-bold text-primary hover:bg-primary/20 transition-colors cursor-pointer shrink-0"
                             >
-                              {recipientDetails.email}
+                              Email
                             </a>
-                          </span>
-                          <a
-                            href={`mailto:${recipientDetails.email}?subject=MedBridge Handover: ${selectedClaim.medicine?.name || 'Medicine'}`}
-                            className="rounded-lg bg-primary/10 px-2.5 py-1 text-xs font-bold text-primary hover:bg-primary/20 transition-colors cursor-pointer shrink-0"
-                          >
-                            Email
-                          </a>
+                          )}
                         </div>
                       </div>
                     );
