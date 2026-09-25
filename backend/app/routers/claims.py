@@ -75,15 +75,40 @@ def claim_to_dict(claim: Claim, db: Optional[Database] = None) -> dict:
     dosage_form = medicine.get("dosage_form") or listing.get("dosage_form") or "Tablet"
     is_restricted = bool(medicine.get("is_restricted", False) or listing.get("is_restricted", False))
 
+    donor_doc = donor or {}
+    recipient_doc = recipient or {}
+
+    donor_id_val = str(donor_doc.get("_id") or donor_doc.get("id") or listing.get("donor_id") or "")
+    donor_name_val = donor_doc.get("name") or listing.get("donor_name") or "Donor"
+    donor_email_val = donor_doc.get("email") or listing.get("donor_email") or ""
+    donor_phone_val = donor_doc.get("phone") or listing.get("donor_phone") or ""
+    donor_type_val = donor_doc.get("donor_type") or listing.get("donor_type") or donor_type or "HOUSEHOLD"
+    donor_addr_val = donor_doc.get("address") or listing.get("pickup_address") or ""
+    donor_city_val = donor_doc.get("city") or listing.get("city") or ""
+    donor_state_val = donor_doc.get("state") or listing.get("state") or ""
+    donor_pincode_val = donor_doc.get("pincode") or listing.get("pincode") or ""
+
+    recipient_id_val = str(recipient_doc.get("_id") or recipient_doc.get("id") or claim.recipient_id or "")
+    recipient_name_val = recipient_doc.get("name") or "Recipient User"
+    recipient_org_val = recipient_doc.get("organization_name") or recipient_name or "Recipient Organization"
+    recipient_org_type_val = recipient_doc.get("organization_type") or "NGO"
+    recipient_email_val = recipient_doc.get("email") or ""
+    recipient_phone_val = recipient_doc.get("phone") or ""
+    recipient_addr_val = recipient_doc.get("address") or ""
+    recipient_city_val = recipient_doc.get("city") or ""
+    recipient_state_val = recipient_doc.get("state") or ""
+    recipient_pincode_val = recipient_doc.get("pincode") or ""
+    recipient_ver_val = recipient_doc.get("verification_status") or recipient_status
+
     result = {
         "id": str(claim.id),
         "listingId": str(claim.listing_id),
         "recipientId": str(claim.recipient_id),
         "requestedQuantity": claim.requested_quantity,
         "availableQuantity": listing.get("quantity_available", listing.get("quantity", 0)),
-        "recipientOrganization": recipient_name,
-        "recipientVerificationStatus": recipient_status,
-        "donorType": donor_type,
+        "recipientOrganization": recipient_org_val,
+        "recipientVerificationStatus": recipient_ver_val,
+        "donorType": donor_type_val,
         "status": status_val,
         "cancellationReason": claim.cancellation_reason,
         "createdAt": created_at_val,
@@ -91,6 +116,10 @@ def claim_to_dict(claim: Claim, db: Optional[Database] = None) -> dict:
         "confirmedAt": confirmed_at_val,
         "completedAt": completed_at_val,
         "cancelledAt": cancelled_at_val,
+        "pickupAddress": donor_addr_val,
+        "pickupCity": donor_city_val,
+        "pickupState": donor_state_val,
+        "pickupPincode": donor_pincode_val,
         "medicine": {
             "id": str(medicine.get("_id") or medicine.get("id") or listing.get("medicine_id") or ""),
             "name": med_name,
@@ -101,6 +130,30 @@ def claim_to_dict(claim: Claim, db: Optional[Database] = None) -> dict:
             "dosageForm": dosage_form,
             "isRestricted": is_restricted,
         },
+        "donor": {
+            "id": donor_id_val,
+            "name": donor_name_val,
+            "email": donor_email_val,
+            "phone": donor_phone_val,
+            "donorType": donor_type_val,
+            "address": donor_addr_val,
+            "city": donor_city_val,
+            "state": donor_state_val,
+            "pincode": donor_pincode_val,
+        },
+        "recipient": {
+            "id": recipient_id_val,
+            "name": recipient_name_val,
+            "organizationName": recipient_org_val,
+            "organizationType": recipient_org_type_val,
+            "email": recipient_email_val,
+            "phone": recipient_phone_val,
+            "address": recipient_addr_val,
+            "city": recipient_city_val,
+            "state": recipient_state_val,
+            "pincode": recipient_pincode_val,
+            "verificationStatus": recipient_ver_val,
+        },
     }
 
     if listing:
@@ -110,27 +163,20 @@ def claim_to_dict(claim: Claim, db: Optional[Database] = None) -> dict:
             "expiryDate": listing.get("expiry_date", ""),
             "quantity": listing.get("quantity", 0),
             "quantityAvailable": listing.get("quantity_available", 0),
-            "city": listing.get("city", ""),
-            "state": listing.get("state", ""),
+            "batchNumber": listing.get("batch_number", ""),
+            "packagingCondition": listing.get("packaging_condition", "SEALED_INTACT"),
+            "storageConditions": listing.get("storage_conditions", ""),
+            "pickupAddress": donor_addr_val,
+            "city": donor_city_val,
+            "state": donor_state_val,
+            "pincode": donor_pincode_val,
             "location": {
-                "city": listing.get("city", ""),
-                "state": listing.get("state", ""),
-                "postalCode": listing.get("postal_code", ""),
+                "city": donor_city_val,
+                "state": donor_state_val,
+                "postalCode": donor_pincode_val,
             },
-        }
-        if medicine:
-            result["listing"]["medicine"] = result.get("medicine")
-        if donor:
-            result["listing"]["donor"] = {
-                "id": str(donor.get("_id") or donor.get("id")),
-                "name": donor.get("name", ""),
-            }
-
-    if recipient:
-        result["recipient"] = {
-            "id": str(recipient.get("_id") or recipient.get("id")),
-            "name": recipient.get("name", ""),
-            "organizationName": recipient.get("organization_name", ""),
+            "donor": result["donor"],
+            "medicine": result["medicine"],
         }
 
     return result
@@ -291,7 +337,7 @@ def create_claim(
         message=f"{current_user.name} has requested {requested_qty} unit(s) of your listing.",
         listing_id=lid,
         claim_id=claim_id,
-        link="/donor/claims",
+        link=f"/donor/claims?claimId={claim_id}",
     )
 
     audit_repository.log(
@@ -337,15 +383,23 @@ def confirm_claim(
             {"$set": {"status": "CLAIMED"}}
         )
 
+    donor_name = current_user.name
+    med_name = ""
+    if claim.listing_id:
+        list_doc = db["listings"].find_one({"$or": [{"_id": str(claim.listing_id)}, {"id": str(claim.listing_id)}]})
+        if list_doc:
+            med_name = list_doc.get("medicine_name") or ""
+
+    med_label = f" for {med_name}" if med_name else ""
     notify(
         db,
         user_id=claim.recipient_id,
         notif_type=NotificationType.CLAIM_CONFIRMED,
         title="Claim Confirmed",
-        message="Your claim has been confirmed by the donor. Pickup details will follow.",
+        message=f"Your claim{med_label} was confirmed by {donor_name}! Donor contact & pickup details are now available.",
         listing_id=claim.listing_id,
         claim_id=cid,
-        link="/recipient/claims",
+        link=f"/recipient/claims?claimId={cid}",
     )
 
     audit_repository.log(

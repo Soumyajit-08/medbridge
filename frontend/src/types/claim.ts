@@ -3,6 +3,32 @@ import type { Medicine } from './medicine';
 
 export type ClaimStatus = 'PENDING' | 'CONFIRMED' | 'COMPLETED' | 'CANCELLED';
 
+export interface DonorContact {
+  id?: string;
+  name?: string;
+  email?: string;
+  phone?: string;
+  donorType?: DonorType | string;
+  address?: string;
+  city?: string;
+  state?: string;
+  pincode?: string;
+}
+
+export interface RecipientContact {
+  id?: string;
+  name?: string;
+  organizationName?: string;
+  organizationType?: string;
+  email?: string;
+  phone?: string;
+  address?: string;
+  city?: string;
+  state?: string;
+  pincode?: string;
+  verificationStatus?: string;
+}
+
 export interface Claim {
   id: string;
   listingId: string;
@@ -18,6 +44,25 @@ export interface Claim {
   confirmedAt?: string;
   completedAt?: string;
   cancelledAt?: string;
+  cancellationReason?: string;
+  pickupAddress?: string;
+  pickupCity?: string;
+  pickupState?: string;
+  pickupPincode?: string;
+  donor?: DonorContact;
+  recipient?: RecipientContact;
+  listing?: {
+    id?: string;
+    batchNumber?: string;
+    expiryDate?: string;
+    packagingCondition?: string;
+    storageConditions?: string;
+    pickupAddress?: string;
+    city?: string;
+    state?: string;
+    pincode?: string;
+    donor?: DonorContact;
+  };
 }
 
 export interface CreateClaimPayload {
