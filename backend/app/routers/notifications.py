@@ -18,7 +18,13 @@ router = APIRouter(prefix="/notifications", tags=["Notifications"])
 
 def notif_to_dict(n: Notification) -> dict:
     type_val = n.type if isinstance(n.type, str) else getattr(n.type, "value", str(n.type))
-    created_at_val = n.created_at.isoformat() if hasattr(n.created_at, "isoformat") else str(n.created_at or "")
+    created_at = n.created_at or datetime.now(timezone.utc)
+    if hasattr(created_at, "isoformat"):
+        created_at_val = created_at.isoformat()
+    elif isinstance(created_at, str) and created_at:
+        created_at_val = created_at
+    else:
+        created_at_val = datetime.now(timezone.utc).isoformat()
 
     return {
         "id": str(n.id),

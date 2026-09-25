@@ -1,4 +1,4 @@
-import { formatRelativeTime } from '@/utils/formatDate';
+import { formatRelativeTime, formatDateTime } from '@/utils/formatDate';
 import { cn } from '@/utils/cn';
 
 export interface ActivityItem {
@@ -32,7 +32,10 @@ export function ActivityList({
             <p className="text-sm font-medium text-text-primary">{item.title}</p>
             <p className="mt-0.5 text-sm text-text-secondary">{item.description}</p>
           </div>
-          <time className="shrink-0 text-xs text-text-secondary">
+          <time
+            className="shrink-0 text-xs text-text-secondary cursor-help"
+            title={formatDateTime(item.timestamp)}
+          >
             {formatRelativeTime(item.timestamp)}
           </time>
         </li>

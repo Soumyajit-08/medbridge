@@ -22,7 +22,7 @@ import {
   useMarkAllNotificationsRead,
   useDeleteNotification,
 } from '@/hooks/useNotifications';
-import { formatRelativeTime } from '@/utils/formatDate';
+import { formatRelativeTime, formatDateTime } from '@/utils/formatDate';
 import { cn } from '@/utils/cn';
 
 function getNotificationIcon(type: string) {
@@ -148,7 +148,10 @@ export function RecipientNotificationsPage() {
                   <p className="mt-1 text-sm text-text-secondary">{notification.message}</p>
                   
                   <div className="mt-3 flex flex-wrap items-center gap-3">
-                    <time className="text-xs text-text-muted">
+                    <time
+                      className="text-xs text-text-muted cursor-help"
+                      title={formatDateTime(notification.createdAt)}
+                    >
                       {formatRelativeTime(notification.createdAt)}
                     </time>
 

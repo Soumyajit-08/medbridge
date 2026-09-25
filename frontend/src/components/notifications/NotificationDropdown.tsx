@@ -17,7 +17,7 @@ import { useNotifications, useMarkNotificationRead, useMarkAllNotificationsRead,
 import { useAuth } from '@/hooks/useAuth';
 import { useUIStore } from '@/store/uiStore';
 import { ROUTES } from '@/lib/constants';
-import { formatRelativeTime } from '@/utils/formatDate';
+import { formatRelativeTime, formatDateTime } from '@/utils/formatDate';
 import { cn } from '@/utils/cn';
 import type { Notification } from '@/types/notification';
 
@@ -178,7 +178,10 @@ export function NotificationDropdown() {
                       {notification.message}
                     </p>
                     <div className="flex items-center gap-2 mt-1.5">
-                      <span className="text-[11px] text-text-muted">
+                      <span
+                        className="text-[11px] text-text-muted cursor-help"
+                        title={formatDateTime(notification.createdAt)}
+                      >
                         {formatRelativeTime(notification.createdAt)}
                       </span>
                       {notification.link && (
