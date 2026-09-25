@@ -157,35 +157,52 @@ export function MyClaimsPage() {
                       )}
                     </div>
 
-                    <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                      <div>
-                        <p className="text-xs font-medium text-text-primary flex items-center gap-1.5">
-                          <User className="size-3.5 text-primary" /> {donor?.name || 'Verified Donor'}
+                    <div className="mt-3 grid gap-3.5 sm:grid-cols-2">
+                      <div className="space-y-1.5 text-xs">
+                        <p className="font-semibold text-text-primary flex items-center gap-1.5 text-sm">
+                          <User className="size-4 text-primary" /> {donor?.name || 'Verified Donor'}
                         </p>
+                        
+                        {donor?.email && (
+                          <p className="text-text-secondary flex items-center gap-1.5">
+                            <Mail className="size-3.5 text-text-muted shrink-0" />
+                            <span className="text-text-muted">Email:</span>
+                            <a href={`mailto:${donor.email}`} className="font-medium text-primary hover:underline">{donor.email}</a>
+                          </p>
+                        )}
+
+                        {donor?.phone && (
+                          <p className="text-text-secondary flex items-center gap-1.5">
+                            <Phone className="size-3.5 text-emerald-500 shrink-0" />
+                            <span className="text-text-muted">Mobile / Phone:</span>
+                            <a href={`tel:${donor.phone}`} className="font-semibold text-emerald-500 hover:underline">{donor.phone}</a>
+                          </p>
+                        )}
+
                         {fullLocation && (
-                          <p className="mt-1 text-xs text-text-secondary flex items-start gap-1.5">
+                          <p className="text-text-secondary flex items-start gap-1.5 pt-0.5">
                             <MapPin className="size-3.5 text-text-muted shrink-0 mt-0.5" />
-                            <span>{fullLocation}</span>
+                            <span><span className="text-text-muted">Pickup:</span> {fullLocation}</span>
                           </p>
                         )}
                       </div>
 
-                      {/* Contact Channels */}
-                      <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+                      {/* Contact Action Buttons */}
+                      <div className="flex flex-wrap items-center gap-2 sm:justify-end sm:self-center">
                         {donor?.email && (
                           <a
                             href={`mailto:${donor.email}?subject=MedBridge Medicine Pickup: ${claim.medicine?.name || 'Medicine'}`}
-                            className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-white transition-opacity hover:opacity-90"
+                            className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-xs font-semibold text-white shadow-xs transition-all hover:opacity-90 active:scale-95"
                           >
-                            <Mail className="size-3.5" /> Email Donor
+                            <Mail className="size-3.5" /> Send Email
                           </a>
                         )}
                         {donor?.phone && (
                           <a
                             href={`tel:${donor.phone}`}
-                            className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-surface px-3 py-1.5 text-xs font-medium text-text-primary transition-colors hover:bg-background"
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-500 transition-all hover:bg-emerald-500/20 active:scale-95"
                           >
-                            <Phone className="size-3.5 text-emerald-500" /> Call ({donor.phone})
+                            <Phone className="size-3.5" /> Call ({donor.phone})
                           </a>
                         )}
                       </div>

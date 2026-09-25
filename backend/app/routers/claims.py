@@ -33,15 +33,15 @@ def claim_to_dict(claim: Claim, db: Optional[Database] = None) -> dict:
     listing = claim.listing or {}
     recipient = claim.recipient or {}
 
-    if (not listing or not recipient) and db is not None:
-        if not listing and claim.listing_id:
+    if db is not None:
+        if claim.listing_id:
             doc = db["listings"].find_one({"$or": [{"_id": str(claim.listing_id)}, {"id": str(claim.listing_id)}]})
             if doc:
-                listing = doc
-        if not recipient and claim.recipient_id:
+                listing = {**listing, **doc}
+        if claim.recipient_id:
             doc = db["users"].find_one({"$or": [{"_id": str(claim.recipient_id)}, {"id": str(claim.recipient_id)}]})
             if doc:
-                recipient = doc
+                recipient = {**recipient, **doc}
 
     medicine = listing.get("medicine") or {}
     if not medicine and db is not None and listing.get("medicine_id"):
@@ -50,10 +50,11 @@ def claim_to_dict(claim: Claim, db: Optional[Database] = None) -> dict:
             medicine = doc
 
     donor = listing.get("donor") or {}
-    if not donor and db is not None and listing.get("donor_id"):
-        doc = db["users"].find_one({"$or": [{"_id": str(listing.get("donor_id"))}, {"id": str(listing.get("donor_id"))}]})
+    donor_id = listing.get("donor_id") or donor.get("_id") or donor.get("id")
+    if db is not None and donor_id:
+        doc = db["users"].find_one({"$or": [{"_id": str(donor_id)}, {"id": str(donor_id)}]})
         if doc:
-            donor = doc
+            donor = {**donor, **doc}
 
     status_val = claim.status if isinstance(claim.status, str) else getattr(claim.status, "value", str(claim.status))
     created_at_val = claim.created_at.isoformat() if hasattr(claim.created_at, "isoformat") else str(claim.created_at or "")
