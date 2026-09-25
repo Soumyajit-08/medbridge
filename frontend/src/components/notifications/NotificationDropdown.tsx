@@ -99,15 +99,16 @@ export function NotificationDropdown() {
         type="button"
         onClick={toggleNotificationPanel}
         className={cn(
-          'relative rounded-lg p-2 text-text-secondary transition-colors hover:bg-background hover:text-text-primary',
-          notificationPanelOpen && 'bg-background text-primary',
+          'relative inline-flex size-9 items-center justify-center rounded-xl border border-border/80 bg-surface/80 text-text-secondary transition-all',
+          'hover:border-primary/40 hover:bg-background hover:text-primary active:scale-95 cursor-pointer shadow-2xs',
+          notificationPanelOpen && 'bg-background text-primary border-primary/40 ring-2 ring-primary/20',
         )}
         aria-label={`Notifications${unreadCount > 0 ? `, ${unreadCount} unread` : ''}`}
         aria-expanded={notificationPanelOpen}
       >
-        <Bell className="h-5 w-5" />
+        <Bell className="size-4.5" />
         {unreadCount > 0 && (
-          <span className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-critical px-1 text-[10px] font-semibold text-white">
+          <span className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-critical px-1 text-[10px] font-bold text-white shadow-xs animate-pulse">
             {unreadCount > 99 ? '99+' : unreadCount}
           </span>
         )}
@@ -115,7 +116,7 @@ export function NotificationDropdown() {
 
       {notificationPanelOpen && (
         <div
-          className="absolute right-0 z-50 mt-2 w-[calc(100vw-2rem)] max-w-sm sm:w-96 overflow-hidden rounded-xl border border-border bg-surface shadow-xl"
+          className="fixed inset-x-3 top-16 sm:absolute sm:inset-auto sm:right-0 sm:top-full sm:mt-2 z-50 sm:w-96 max-h-[80vh] overflow-hidden rounded-2xl border border-border bg-surface/98 backdrop-blur-2xl shadow-2xl animate-in fade-in zoom-in-95 duration-150"
           role="region"
           aria-label="Notifications Panel"
         >
