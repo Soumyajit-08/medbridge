@@ -21,7 +21,7 @@ export function RegisterPage() {
         <meta name="description" content={`Create a ${APP_NAME} donor or recipient account.`} />
       </Helmet>
 
-      <div className="relative min-h-[calc(100vh-4rem)] flex items-center justify-center overflow-hidden px-4 py-12">
+      <div className="relative min-h-[calc(100vh-4rem)] flex items-center justify-center overflow-hidden px-3 py-6 sm:px-4 sm:py-12">
         {/* Background Image & Ambient Medical Lighting */}
         <div className="absolute inset-0 z-0 select-none pointer-events-none">
           <img
@@ -42,7 +42,7 @@ export function RegisterPage() {
           initial={{ opacity: 0, y: 24, scale: 0.97 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
           transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
-          className="relative z-10 w-full max-w-md rounded-2xl border border-slate-200 dark:border-slate-700/80 bg-white dark:bg-[#131E3A] p-8 sm:p-10 shadow-2xl card-hover-effect overflow-hidden text-slate-900 dark:text-white"
+          className="relative z-10 w-full max-w-md rounded-2xl border border-slate-200 dark:border-slate-700/80 bg-white dark:bg-[#131E3A] p-5 sm:p-8 md:p-10 shadow-2xl card-hover-effect overflow-hidden text-slate-900 dark:text-white"
         >
           {/* Top Gradient Shimmer Bar */}
           <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-primary to-transparent" />
