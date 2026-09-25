@@ -1,7 +1,9 @@
+import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useMutation } from '@tanstack/react-query';
+import { Eye, EyeOff } from 'lucide-react';
 import { resetPasswordSchema, type ResetPasswordFormData } from '@/schemas/authSchemas';
 import { authService } from '@/services/authService';
 import { ROUTES } from '@/lib/constants';
@@ -10,6 +12,8 @@ import { Input } from '@/components/common/Input';
 import { Alert } from '@/components/feedback/Alert';
 
 export function ResetPasswordForm() {
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [searchParams] = useSearchParams();
   const token = searchParams.get('token') ?? '';
 
@@ -61,19 +65,39 @@ export function ResetPasswordForm() {
 
       <Input
         label="New password"
-        type="password"
+        type={showPassword ? 'text' : 'password'}
         autoComplete="new-password"
         placeholder="At least 8 characters"
         error={errors.password?.message}
+        endIcon={
+          <button
+            type="button"
+            onClick={() => setShowPassword(!showPassword)}
+            className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors focus:outline-none cursor-pointer"
+            aria-label={showPassword ? 'Hide password' : 'Show password'}
+          >
+            {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+          </button>
+        }
         {...register('password')}
       />
 
       <Input
         label="Confirm password"
-        type="password"
+        type={showConfirmPassword ? 'text' : 'password'}
         autoComplete="new-password"
         placeholder="Re-enter your password"
         error={errors.confirmPassword?.message}
+        endIcon={
+          <button
+            type="button"
+            onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+            className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors focus:outline-none cursor-pointer"
+            aria-label={showConfirmPassword ? 'Hide confirm password' : 'Show confirm password'}
+          >
+            {showConfirmPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+          </button>
+        }
         {...register('confirmPassword')}
       />
 

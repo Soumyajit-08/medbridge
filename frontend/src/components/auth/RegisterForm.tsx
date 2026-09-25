@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Link } from 'react-router-dom';
+import { Eye, EyeOff } from 'lucide-react';
 import {
   donorRegisterSchema,
   recipientRegisterSchema,
@@ -62,6 +63,8 @@ function DonorForm({
   errorMessage: string | null;
   isRegistering: boolean;
 }) {
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const { register: registerUser } = useAuth();
   const {
     register,
@@ -99,8 +102,40 @@ function DonorForm({
         error={errors.donorType?.message}
         {...register('donorType')}
       />
-      <Input label="Password" type="password" autoComplete="new-password" error={errors.password?.message} {...register('password')} />
-      <Input label="Confirm password" type="password" autoComplete="new-password" error={errors.confirmPassword?.message} {...register('confirmPassword')} />
+      <Input
+        label="Password"
+        type={showPassword ? 'text' : 'password'}
+        autoComplete="new-password"
+        error={errors.password?.message}
+        endIcon={
+          <button
+            type="button"
+            onClick={() => setShowPassword(!showPassword)}
+            className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors focus:outline-none cursor-pointer"
+            aria-label={showPassword ? 'Hide password' : 'Show password'}
+          >
+            {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+          </button>
+        }
+        {...register('password')}
+      />
+      <Input
+        label="Confirm password"
+        type={showConfirmPassword ? 'text' : 'password'}
+        autoComplete="new-password"
+        error={errors.confirmPassword?.message}
+        endIcon={
+          <button
+            type="button"
+            onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+            className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors focus:outline-none cursor-pointer"
+            aria-label={showConfirmPassword ? 'Hide confirm password' : 'Show confirm password'}
+          >
+            {showConfirmPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+          </button>
+        }
+        {...register('confirmPassword')}
+      />
       <Button type="submit" className="w-full" isLoading={isRegistering}>
         Create account
       </Button>
@@ -115,6 +150,8 @@ function RecipientForm({
   errorMessage: string | null;
   isRegistering: boolean;
 }) {
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const { register: registerUser } = useAuth();
   const {
     register,
@@ -153,8 +190,40 @@ function RecipientForm({
         error={errors.organizationType?.message}
         {...register('organizationType')}
       />
-      <Input label="Password" type="password" autoComplete="new-password" error={errors.password?.message} {...register('password')} />
-      <Input label="Confirm password" type="password" autoComplete="new-password" error={errors.confirmPassword?.message} {...register('confirmPassword')} />
+      <Input
+        label="Password"
+        type={showPassword ? 'text' : 'password'}
+        autoComplete="new-password"
+        error={errors.password?.message}
+        endIcon={
+          <button
+            type="button"
+            onClick={() => setShowPassword(!showPassword)}
+            className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors focus:outline-none cursor-pointer"
+            aria-label={showPassword ? 'Hide password' : 'Show password'}
+          >
+            {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+          </button>
+        }
+        {...register('password')}
+      />
+      <Input
+        label="Confirm password"
+        type={showConfirmPassword ? 'text' : 'password'}
+        autoComplete="new-password"
+        error={errors.confirmPassword?.message}
+        endIcon={
+          <button
+            type="button"
+            onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+            className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors focus:outline-none cursor-pointer"
+            aria-label={showConfirmPassword ? 'Hide confirm password' : 'Show confirm password'}
+          >
+            {showConfirmPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+          </button>
+        }
+        {...register('confirmPassword')}
+      />
       <Button type="submit" className="w-full" isLoading={isRegistering}>
         Create account
       </Button>

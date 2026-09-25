@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Link } from 'react-router-dom';
-import { Users, ShieldCheck } from 'lucide-react';
+import { Users, ShieldCheck, Eye, EyeOff } from 'lucide-react';
 import { loginSchema, type LoginFormData } from '@/schemas/authSchemas';
 import { useAuth } from '@/hooks/useAuth';
 import { ROUTES } from '@/lib/constants';
@@ -15,6 +15,7 @@ type LoginPortal = 'USER' | 'ADMIN';
 
 export function LoginForm() {
   const [portal, setPortal] = useState<LoginPortal>('USER');
+  const [showPassword, setShowPassword] = useState(false);
   const { login, isLoggingIn, loginError } = useAuth();
 
   const {
@@ -89,10 +90,20 @@ export function LoginForm() {
 
         <Input
           label="Password"
-          type="password"
+          type={showPassword ? 'text' : 'password'}
           autoComplete="current-password"
           placeholder="Enter your password"
           error={errors.password?.message}
+          endIcon={
+            <button
+              type="button"
+              onClick={() => setShowPassword(!showPassword)}
+              className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors focus:outline-none cursor-pointer"
+              aria-label={showPassword ? 'Hide password' : 'Show password'}
+            >
+              {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+            </button>
+          }
           {...register('password')}
         />
 
