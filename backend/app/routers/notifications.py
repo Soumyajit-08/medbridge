@@ -34,6 +34,10 @@ def notif_to_dict(n: Notification) -> dict:
     }
 
 
+import uuid
+from datetime import datetime, timezone
+
+
 @router.get("", summary="Get my notifications")
 def get_notifications(
     page: int = Query(1, ge=1),
@@ -41,6 +45,44 @@ def get_notifications(
     db: Database = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    role_val = current_user.role if isinstance(current_user.role, str) else getattr(current_user.role, "value", str(current_user.role))
+    now = datetime.now(timezone.utc)
+
+    # For ADMIN users, ensure pending verification requests appear in notifications
+    if role_val == "ADMIN":
+        pending_recipients = list(db["users"].find({
+            "role": "RECIPIENT",
+            "verification_status": "PENDING",
+            "is_active": {"$ne": False}
+        }))
+        for rec in pending_recipients:
+            rec_id = str(rec.get("_id") or rec.get("id"))
+            existing = db["notifications"].find_one({
+                "user_id": str(current_user.id),
+                "type": "VERIFICATION_SUBMITTED",
+                "$or": [
+                    {"recipient_id": rec_id},
+                    {"link": f"/admin/verifications/{rec_id}"},
+                ]
+            })
+            if not existing:
+                notif_id = str(uuid.uuid4())
+                org_name = rec.get("organization_name") or rec.get("name") or "Recipient Organization"
+                org_type = rec.get("organization_type") or "NGO"
+                db["notifications"].insert_one({
+                    "_id": notif_id,
+                    "id": notif_id,
+                    "user_id": str(current_user.id),
+                    "recipient_id": rec_id,
+                    "type": "VERIFICATION_SUBMITTED",
+                    "title": f"Pending Verification: {org_name}",
+                    "message": f"Recipient '{rec.get('name')}' ({rec.get('email')}) is awaiting {org_type} verification approval.",
+                    "link": "/admin/verifications",
+                    "read": False,
+                    "is_read": False,
+                    "created_at": rec.get("created_at") or now,
+                })
+
     query = {"user_id": str(current_user.id)}
     total = db["notifications"].count_documents(query)
     unread_count = db["notifications"].count_documents({

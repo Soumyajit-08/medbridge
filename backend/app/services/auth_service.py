@@ -75,6 +75,27 @@ class AuthService:
                 "updated_at": now,
             })
 
+            # Notify all administrators in real time
+            col_users = db["users"] if db is not None else get_db()["users"]
+            col_notif = db["notifications"] if db is not None else get_db()["notifications"]
+            admins = list(col_users.find({"role": "ADMIN"}))
+            org_title = payload.organization_name or user.name
+            for a in admins:
+                nid = str(uuid.uuid4())
+                col_notif.insert_one({
+                    "_id": nid,
+                    "id": nid,
+                    "user_id": str(a.get("_id") or a.get("id")),
+                    "recipient_id": str(user.id),
+                    "type": "VERIFICATION_SUBMITTED",
+                    "title": f"New Verification: {org_title}",
+                    "message": f"Recipient '{user.name}' ({payload.email}) registered and is awaiting verification approval.",
+                    "link": "/admin/verifications",
+                    "read": False,
+                    "is_read": False,
+                    "created_at": now,
+                })
+
         expires_at = utc_now() + timedelta(days=settings.JWT_REFRESH_EXPIRES_DAYS)
         refresh_token_repository.create(
             db,

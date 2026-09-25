@@ -31,6 +31,9 @@ function getNotificationIcon(type: string) {
       return <ClipboardList className="size-4 text-primary" aria-hidden="true" />;
     case 'NEW_MATCH':
       return <Heart className="size-4 text-amber-500" aria-hidden="true" />;
+    case 'VERIFICATION_SUBMITTED':
+    case 'VERIFICATION_PENDING':
+      return <ShieldAlert className="size-4 text-amber-500" aria-hidden="true" />;
     case 'VERIFICATION_APPROVED':
       return <ShieldCheck className="size-4 text-emerald-500" aria-hidden="true" />;
     case 'VERIFICATION_REJECTED':
@@ -64,6 +67,8 @@ export function NotificationDropdown() {
       ? ROUTES.donor.notifications
       : user?.role === 'RECIPIENT'
       ? ROUTES.recipient.notifications
+      : user?.role === 'ADMIN'
+      ? ROUTES.admin.verifications
       : null;
 
   useEffect(() => {
@@ -224,7 +229,7 @@ export function NotificationDropdown() {
                 onClick={() => setNotificationPanelOpen(false)}
                 className="block w-full rounded-lg py-1.5 text-xs font-medium text-text-primary hover:bg-background transition-colors"
               >
-                View all notifications
+                {user?.role === 'ADMIN' ? 'Go to Verification Queue' : 'View all notifications'}
               </Link>
             </div>
           )}
