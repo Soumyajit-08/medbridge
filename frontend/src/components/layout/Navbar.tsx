@@ -3,7 +3,6 @@ import { Link, NavLink } from 'react-router-dom';
 import { Activity, ArrowRight, ChevronDown, LayoutDashboard, LogOut, Menu, X } from 'lucide-react';
 import { ROUTES } from '@/lib/constants';
 import { useAuth } from '@/hooks/useAuth';
-import { useUIStore } from '@/store/uiStore';
 import { getDashboardPath, getRoleLabel } from '@/utils/roleHelpers';
 import { getSidebarNavItems } from '@/components/layout/sidebarNavItems';
 import { cn } from '@/utils/cn';
@@ -132,7 +131,6 @@ function UserMenu() {
 
 export function Navbar() {
   const { user, isAuthenticated } = useAuth();
-  const { toggleMobileSidebar } = useUIStore();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const roleLinks = user ? getSidebarNavItems(user.role).slice(0, 4) : [];
@@ -140,18 +138,7 @@ export function Navbar() {
   return (
     <header className="sticky top-0 z-40 border-b border-border/80 bg-surface/90 backdrop-blur-xl shadow-2xs transition-colors">
       <nav className="mx-auto flex h-14 sm:h-16 max-w-7xl items-center justify-between px-3 sm:px-6 lg:px-8">
-        <div className="flex items-center gap-2 sm:gap-4 md:gap-7 min-w-0">
-          {isAuthenticated && (
-            <button
-              type="button"
-              onClick={toggleMobileSidebar}
-              className="inline-flex size-9 items-center justify-center rounded-xl border border-border/70 bg-surface/80 text-text-secondary hover:bg-background hover:text-text-primary transition-colors lg:hidden cursor-pointer shrink-0"
-              aria-label="Open sidebar"
-            >
-              <Menu className="size-4.5" />
-            </button>
-          )}
-
+        <div className="flex items-center gap-3 sm:gap-4 md:gap-7 min-w-0">
           <Link to={ROUTES.home} className="flex items-center gap-2 shrink-0 group">
             <span className="flex size-8 sm:size-9 items-center justify-center rounded-xl bg-gradient-to-br from-blue-600 via-blue-500 to-indigo-600 text-white font-extrabold shadow-md group-hover:scale-105 transition-transform duration-200">
               <Activity className="size-4.5 sm:size-5 text-white" />
