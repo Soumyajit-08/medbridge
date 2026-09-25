@@ -17,7 +17,7 @@ from app.auth.jwt import create_access_token, create_refresh_token, verify_refre
 from app.schemas.auth import RegisterRequest
 from app.utils.enums import AuditEvent
 from app.utils.exceptions import ConflictError, AuthenticationError
-from app.utils.datetime_utils import utc_now
+from app.utils.datetime_utils import utc_now, is_expired, ensure_utc
 from app.core.config import settings
 from app.db.mongodb import get_db, get_users_collection
 
@@ -165,7 +165,7 @@ class AuthService:
         if not stored_token:
             raise AuthenticationError("Refresh token not found or already revoked")
 
-        if stored_token.expires_at and stored_token.expires_at < utc_now():
+        if stored_token.expires_at and is_expired(stored_token.expires_at):
             raise AuthenticationError("Refresh token has expired")
 
         user = user_repository.get_by_id(db, user_id_str)

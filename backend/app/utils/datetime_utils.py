@@ -15,6 +15,13 @@ def utc_now() -> datetime:
     return datetime.now(timezone.utc)
 
 
+def ensure_utc(dt: datetime) -> datetime:
+    """Ensure a datetime is timezone-aware UTC."""
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
+
+
 def days_until(dt: datetime) -> int:
     """
     Calculate how many days remain until a given datetime.
@@ -24,13 +31,11 @@ def days_until(dt: datetime) -> int:
         expiry = datetime(2025, 12, 31, tzinfo=timezone.utc)
         days = days_until(expiry)  # e.g., 7
     """
-    if dt.tzinfo is None:
-        # If we receive a naive datetime, assume UTC
-        dt = dt.replace(tzinfo=timezone.utc)
-    delta = dt - utc_now()
+    dt_aware = ensure_utc(dt)
+    delta = dt_aware - utc_now()
     return delta.days  # This is floor division, gives whole days
 
 
 def is_expired(dt: datetime) -> bool:
     """Return True if the given datetime is in the past."""
-    return days_until(dt) < 0
+    return ensure_utc(dt) < utc_now()
