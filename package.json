@@ -9,5 +9,10 @@
     "dev:frontend": "npm --prefix frontend run dev",
     "build:frontend": "npm --prefix frontend run build",
     "test:frontend": "npm --prefix frontend run test"
+  },
+  "optionalDependencies": {
+    "@rolldown/binding-linux-x64-gnu": "*",
+    "@rollup/rollup-linux-x64-gnu": "*",
+    "lightningcss-linux-x64-gnu": "*"
   }
 }
