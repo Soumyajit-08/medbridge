@@ -334,86 +334,98 @@ export function MyClaimsPage() {
                   <h4 className="text-xs font-semibold uppercase tracking-wider text-text-muted mb-2">
                     Donor Contact Information
                   </h4>
-                  <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/[0.04] p-4 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <User className="size-4 text-primary" />
-                        <span className="text-sm font-semibold text-text-primary">
-                          {selectedClaim.donor?.name || selectedClaim.listing?.donor?.name || 'Verified Donor'}
-                        </span>
-                      </div>
-                      <span className="text-[11px] rounded bg-emerald-500/10 px-2 py-0.5 font-medium text-emerald-500">
-                        Verified Donor
-                      </span>
-                    </div>
+                  {(() => {
+                    const modalDonor = selectedClaim.donor || selectedClaim.listing?.donor || {};
+                    const modalDonorName = modalDonor.name || (selectedClaim as any).donorName || (selectedClaim as any).listing?.donorName || 'Verified Donor';
+                    const modalDonorEmail = modalDonor.email || (selectedClaim as any).donorEmail || (selectedClaim as any).listing?.donorEmail || (selectedClaim as any).listing?.donor?.email || '';
+                    const modalDonorPhone = modalDonor.phone || (selectedClaim as any).donorPhone || (selectedClaim as any).listing?.donorPhone || (selectedClaim as any).listing?.donor?.phone || '';
+                    const modalDonorAddress = selectedClaim.pickupAddress || selectedClaim.listing?.pickupAddress || modalDonor.address || '';
+                    const modalDonorCity = selectedClaim.pickupCity || selectedClaim.listing?.city || modalDonor.city || '';
+                    const modalDonorState = selectedClaim.pickupState || selectedClaim.listing?.state || modalDonor.state || '';
+                    const modalDonorPincode = selectedClaim.pickupPincode || selectedClaim.listing?.pincode || modalDonor.pincode || '';
+                    const modalLocation = [modalDonorAddress, modalDonorCity, modalDonorState, modalDonorPincode].filter(Boolean).join(', ');
 
-                    <div className="space-y-2 pt-2 border-t border-emerald-500/10 text-xs">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-text-secondary flex items-center gap-1.5">
-                          <Mail className="size-3.5 text-text-muted shrink-0" />
-                          <span className="text-text-muted">Email:</span>
-                          {(selectedClaim.donor?.email || selectedClaim.listing?.donor?.email || (selectedClaim as any).donorEmail) ? (
-                            <a
-                              href={`mailto:${selectedClaim.donor?.email || selectedClaim.listing?.donor?.email || (selectedClaim as any).donorEmail}`}
-                              className="font-semibold text-primary hover:underline"
-                            >
-                              {selectedClaim.donor?.email || selectedClaim.listing?.donor?.email || (selectedClaim as any).donorEmail}
-                            </a>
-                          ) : (
-                            <span className="text-text-muted italic">Registered User</span>
-                          )}
-                        </span>
-                        {(selectedClaim.donor?.email || selectedClaim.listing?.donor?.email || (selectedClaim as any).donorEmail) && (
-                          <a
-                            href={`mailto:${selectedClaim.donor?.email || selectedClaim.listing?.donor?.email || (selectedClaim as any).donorEmail}?subject=MedBridge Medicine Pickup`}
-                            className="rounded bg-primary/10 px-2 py-1 text-[11px] font-semibold text-primary hover:bg-primary/20 transition-colors"
-                          >
-                            Send Email
-                          </a>
-                        )}
-                      </div>
-
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-text-secondary flex items-center gap-1.5">
-                          <Phone className="size-3.5 text-emerald-500 shrink-0" />
-                          <span className="text-text-muted">Phone:</span>
-                          {(selectedClaim.donor?.phone || selectedClaim.listing?.donor?.phone || (selectedClaim as any).donorPhone) ? (
-                            <a
-                              href={`tel:${selectedClaim.donor?.phone || selectedClaim.listing?.donor?.phone || (selectedClaim as any).donorPhone}`}
-                              className="font-bold text-emerald-600 dark:text-emerald-400 hover:underline"
-                            >
-                              {selectedClaim.donor?.phone || selectedClaim.listing?.donor?.phone || (selectedClaim as any).donorPhone}
-                            </a>
-                          ) : (
-                            <span className="text-text-muted italic">Contact via email</span>
-                          )}
-                        </span>
-                        {(selectedClaim.donor?.phone || selectedClaim.listing?.donor?.phone || (selectedClaim as any).donorPhone) && (
-                          <a
-                            href={`tel:${selectedClaim.donor?.phone || selectedClaim.listing?.donor?.phone || (selectedClaim as any).donorPhone}`}
-                            className="rounded bg-emerald-500/10 px-2 py-1 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 transition-colors"
-                          >
-                            Call Now
-                          </a>
-                        )}
-                      </div>
-
-                      {(selectedClaim.pickupAddress || selectedClaim.listing?.pickupAddress || selectedClaim.donor?.address) && (
-                        <div className="pt-2 border-t border-emerald-500/10">
-                          <span className="text-text-muted block mb-0.5">Pickup Location</span>
-                          <p className="text-text-primary flex items-start gap-1.5">
-                            <MapPin className="size-3.5 text-primary shrink-0 mt-0.5" />
-                            {[
-                              selectedClaim.pickupAddress || selectedClaim.listing?.pickupAddress || selectedClaim.donor?.address,
-                              selectedClaim.pickupCity || selectedClaim.listing?.city || selectedClaim.donor?.city,
-                              selectedClaim.pickupState || selectedClaim.listing?.state || selectedClaim.donor?.state,
-                              selectedClaim.pickupPincode || selectedClaim.listing?.pincode || selectedClaim.donor?.pincode,
-                            ].filter(Boolean).join(', ')}
-                          </p>
+                    return (
+                      <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/[0.04] p-4 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <User className="size-4 text-primary shrink-0" />
+                            <span className="text-sm font-bold text-text-primary">
+                              {modalDonorName}
+                            </span>
+                          </div>
+                          <span className="text-[11px] rounded-full bg-emerald-500/15 px-2.5 py-0.5 font-bold text-emerald-600 dark:text-emerald-400">
+                            Verified Donor
+                          </span>
                         </div>
-                      )}
-                    </div>
-                  </div>
+
+                        <div className="space-y-2.5 pt-2.5 border-t border-emerald-500/15 text-xs">
+                          {/* Gmail / Email Address */}
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-text-secondary flex items-center gap-1.5">
+                              <Mail className="size-4 text-primary shrink-0" />
+                              <span className="font-semibold text-text-muted">Email / Gmail:</span>
+                              {modalDonorEmail ? (
+                                <a
+                                  href={`mailto:${modalDonorEmail}`}
+                                  className="font-bold text-primary hover:underline"
+                                >
+                                  {modalDonorEmail}
+                                </a>
+                              ) : (
+                                <span className="text-text-muted italic">Registered Donor Account</span>
+                              )}
+                            </span>
+                            {modalDonorEmail && (
+                              <a
+                                href={`mailto:${modalDonorEmail}?subject=MedBridge Medicine Pickup: ${selectedClaim.medicine?.name || 'Medicine'}`}
+                                className="rounded-lg bg-primary/10 px-2.5 py-1 text-xs font-bold text-primary hover:bg-primary/20 transition-colors cursor-pointer"
+                              >
+                                Send Email
+                              </a>
+                            )}
+                          </div>
+
+                          {/* Mobile / Phone Number */}
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-text-secondary flex items-center gap-1.5">
+                              <Phone className="size-4 text-emerald-500 shrink-0" />
+                              <span className="font-semibold text-text-muted">Mobile / Phone:</span>
+                              {modalDonorPhone ? (
+                                <a
+                                  href={`tel:${modalDonorPhone}`}
+                                  className="font-bold text-emerald-600 dark:text-emerald-400 hover:underline"
+                                >
+                                  {modalDonorPhone}
+                                </a>
+                              ) : (
+                                <span className="text-text-muted italic">Available via direct email</span>
+                              )}
+                            </span>
+                            {modalDonorPhone && (
+                              <a
+                                href={`tel:${modalDonorPhone}`}
+                                className="rounded-lg bg-emerald-500/10 px-2.5 py-1 text-xs font-bold text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 transition-colors cursor-pointer"
+                              >
+                                Call Now
+                              </a>
+                            )}
+                          </div>
+
+                          {/* Pickup Location */}
+                          {modalLocation && (
+                            <div className="pt-2 border-t border-emerald-500/10">
+                              <span className="text-text-muted font-semibold block mb-0.5">Pickup Location</span>
+                              <p className="text-text-primary flex items-start gap-1.5 font-medium">
+                                <MapPin className="size-3.5 text-primary shrink-0 mt-0.5" />
+                                {modalLocation}
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
               ) : (
                 <div className="rounded-xl border border-border bg-background p-4 text-xs text-text-secondary flex items-start gap-2.5">

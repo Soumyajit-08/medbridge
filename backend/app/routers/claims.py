@@ -31,22 +31,26 @@ from app.repositories.audit_repository import audit_repository
 router = APIRouter(prefix="/claims", tags=["Claims"])
 
 
-def _fetch_user_doc(db: Database, uid_or_val: Optional[str], fallback_name: Optional[str] = None, fallback_email: Optional[str] = None) -> dict:
-    if not db or not uid_or_val:
+def _fetch_user_doc(db: Database, uid_or_val: Optional[str] = None, fallback_name: Optional[str] = None, fallback_email: Optional[str] = None) -> dict:
+    if not db:
         return {}
-    uid_str = str(uid_or_val).strip()
-    or_conds = [{"_id": uid_str}, {"id": uid_str}]
-    try:
-        from bson import ObjectId
-        if ObjectId.is_valid(uid_str):
-            or_conds.append({"_id": ObjectId(uid_str)})
-    except Exception:
-        pass
-    doc = db["users"].find_one({"$or": or_conds})
+    doc = None
+    if uid_or_val:
+        uid_str = str(uid_or_val).strip()
+        if uid_str:
+            or_conds = [{"_id": uid_str}, {"id": uid_str}]
+            try:
+                from bson import ObjectId
+                if ObjectId.is_valid(uid_str):
+                    or_conds.append({"_id": ObjectId(uid_str)})
+            except Exception:
+                pass
+            doc = db["users"].find_one({"$or": or_conds})
+
     if not doc and fallback_email:
-        doc = db["users"].find_one({"email": {"$regex": f"^{re.escape(fallback_email.strip())}$", "$options": "i"}})
+        doc = db["users"].find_one({"email": {"$regex": f"^{re.escape(str(fallback_email).strip())}$", "$options": "i"}})
     if not doc and fallback_name:
-        doc = db["users"].find_one({"name": {"$regex": f"^{re.escape(fallback_name.strip())}$", "$options": "i"}})
+        doc = db["users"].find_one({"name": {"$regex": f"^{re.escape(str(fallback_name).strip())}$", "$options": "i"}})
     return doc or {}
 
 
@@ -124,8 +128,8 @@ def claim_to_dict(claim: Claim, db: Optional[Database] = None) -> dict:
 
     donor_id_val = str(donor_doc.get("_id") or donor_doc.get("id") or listing.get("donor_id") or "")
     donor_name_val = donor_doc.get("name") or listing.get("donor_name") or "Donor"
-    donor_email_val = donor_doc.get("email") or donor_doc.get("email_address") or donor_doc.get("mail") or listing.get("donor_email") or ""
-    donor_phone_val = donor_doc.get("phone") or donor_doc.get("phone_number") or donor_doc.get("mobile") or donor_doc.get("contact") or donor_doc.get("phoneNumber") or listing.get("donor_phone") or listing.get("phone") or ""
+    donor_email_val = donor_doc.get("email") or donor_doc.get("email_address") or donor_doc.get("gmail") or donor_doc.get("mail") or listing.get("donor_email") or listing.get("email") or ""
+    donor_phone_val = donor_doc.get("phone") or donor_doc.get("phone_number") or donor_doc.get("mobile") or donor_doc.get("mobile_number") or donor_doc.get("contact") or donor_doc.get("phoneNumber") or listing.get("donor_phone") or listing.get("phone") or listing.get("mobile") or ""
     donor_type_val = donor_doc.get("donor_type") or listing.get("donor_type") or donor_type or "HOUSEHOLD"
     donor_addr_val = donor_doc.get("address") or listing.get("pickup_address") or ""
     donor_city_val = donor_doc.get("city") or listing.get("city") or ""
@@ -153,6 +157,9 @@ def claim_to_dict(claim: Claim, db: Optional[Database] = None) -> dict:
         "recipientOrganization": recipient_org_val,
         "recipientVerificationStatus": recipient_ver_val,
         "donorType": donor_type_val,
+        "donorName": donor_name_val,
+        "donorEmail": donor_email_val,
+        "donorPhone": donor_phone_val,
         "status": status_val,
         "cancellationReason": claim.cancellation_reason,
         "createdAt": created_at_val,
