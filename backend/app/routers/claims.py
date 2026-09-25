@@ -130,6 +130,41 @@ def claim_to_dict(claim: Claim, db: Optional[Database] = None) -> dict:
     donor_name_val = donor_doc.get("name") or listing.get("donor_name") or "Donor"
     donor_email_val = donor_doc.get("email") or donor_doc.get("email_address") or donor_doc.get("gmail") or donor_doc.get("mail") or listing.get("donor_email") or listing.get("email") or ""
     donor_phone_val = donor_doc.get("phone") or donor_doc.get("phone_number") or donor_doc.get("mobile") or donor_doc.get("mobile_number") or donor_doc.get("contact") or donor_doc.get("phoneNumber") or listing.get("donor_phone") or listing.get("phone") or listing.get("mobile") or ""
+
+    if db is not None:
+        if (not donor_email_val or not donor_phone_val) and donor_name_val and donor_name_val != "Donor":
+            user_by_name = db["users"].find_one({"name": {"$regex": f"^{re.escape(str(donor_name_val).strip())}$", "$options": "i"}})
+            if user_by_name:
+                if not donor_email_val:
+                    donor_email_val = user_by_name.get("email") or user_by_name.get("email_address") or ""
+                if not donor_phone_val:
+                    donor_phone_val = user_by_name.get("phone") or user_by_name.get("mobile") or user_by_name.get("phone_number") or ""
+
+        if not donor_phone_val:
+            m_conds = []
+            if donor_id_val:
+                m_conds.extend([{"donor_id": donor_id_val}, {"donor.id": donor_id_val}])
+            if donor_name_val and donor_name_val != "Donor":
+                m_conds.extend([{"donor_name": donor_name_val}, {"donor.name": donor_name_val}])
+            if donor_email_val:
+                m_conds.extend([{"donor_email": donor_email_val}, {"donor.email": donor_email_val}])
+            if m_conds:
+                other_list = db["listings"].find_one({
+                    "$or": m_conds,
+                    "$and": [{"$or": [
+                        {"donor_phone": {"$exists": True, "$ne": ""}},
+                        {"donor.phone": {"$exists": True, "$ne": ""}},
+                        {"phone": {"$exists": True, "$ne": ""}},
+                    ]}]
+                })
+                if other_list:
+                    donor_phone_val = (
+                        other_list.get("donor_phone")
+                        or (other_list.get("donor") or {}).get("phone")
+                        or other_list.get("phone")
+                        or ""
+                    )
+
     donor_type_val = donor_doc.get("donor_type") or listing.get("donor_type") or donor_type or "HOUSEHOLD"
     donor_addr_val = donor_doc.get("address") or listing.get("pickup_address") or ""
     donor_city_val = donor_doc.get("city") or listing.get("city") or ""
